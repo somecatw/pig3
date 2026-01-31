@@ -63,8 +63,8 @@ void MainWindow::updateFrame(){
     cam.height = 7;
     cam.frame.axisX = {1, 0, 0};
     cam.frame.axisY = {0, 1, 0};
-    // cam.frame.axisX = {0.98, 0, sqrt(0.0396f)};
-    // cam.frame.axisY = {0, 1, 0};
+    cam.frame.axisX = {0.98, 0, sqrt(0.0396f)};
+    cam.frame.axisY = {0, 1, 0};
     cam.frame.axisZ = cam.frame.axisX.cross(cam.frame.axisY);
     qDebug()<<cam.frame.axisZ.to_string();
     cam.screenSize = {8, 5.6, 0};
