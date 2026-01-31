@@ -49,8 +49,10 @@ void MainWindow::updateFrame(){
     // }
     // label->setPixmap(QPixmap::fromImage(*img));
 
-    vector<Vertex> vertices = assetManager.getMeshes()[0].vertexs;
+    vector<Vertex> vertices = assetManager.getMeshes()[0].vertices;
     vector<Triangle> triangles = assetManager.getMeshes()[0].triangles;
+    for(auto &t:triangles)
+       t.shaderConfig |= ShaderConfig::WireframeOnly;
 
     // vector<Vertex> vertices = {{{0,0,0},{0,0,0}},{{0,0,2},{0,0,0}},{{0,2,0},{0,0,0}},{{0,2,2},{0,0,0}},
     //                            {{2,0,0},{0,0,0}},{{2,0,2},{0,0,0}},{{2,2,0},{0,0,0}},{{2,2,2},{0,0,0}}};

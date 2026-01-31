@@ -27,6 +27,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         render.h render.cpp
         utils.h
         assetmanager.h assetmanager.cpp
+        shaders.h
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET pig3 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

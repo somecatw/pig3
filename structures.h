@@ -7,6 +7,14 @@
 
 const int tileSize = 64;
 
+struct ShaderConfig{
+    static constexpr ushort
+        WireframeOnly  = 0x0001,
+        UseAlphaBitmap = 0x0002,
+        MonoChrome     = 0x0004,
+        UseLightModel  = 0x0008;
+};
+
 struct Material{
     QImage img;
 };
@@ -18,13 +26,16 @@ struct Vertex{
 // 3D 的三角形
 struct Triangle{
     uint vid[3];
+    ushort materialID;
+    ushort shaderConfig = 0;
 };
 
 // 这里 triangle 的 vid 是在此 mesh 内部的 vertexs 中的下标
 struct Mesh{
     std::vector<Triangle> triangles;
-    std::vector<Vertex> vertexs;
-    uint materialID;
+    std::vector<Vertex> vertices;
+    ushort materialID;
+    ushort shaderConfig = 0;
 };
 
 struct Iterator2D{

@@ -165,8 +165,8 @@ bool AssetManager::loadOBJ(const QString& objPath)
                     Vertex newVert;
                     newVert.pos = tempPos[posIdx];
                     newVert.uv = tempUV[uvIdx];
-                    vertexMap[key] = currentMesh.vertexs.size();
-                    currentMesh.vertexs.push_back(newVert);
+                    vertexMap[key] = currentMesh.vertices.size();
+                    currentMesh.vertices.push_back(newVert);
                 }
 
                 // 给三角形赋值顶点下标
@@ -180,11 +180,11 @@ bool AssetManager::loadOBJ(const QString& objPath)
     objFile.close();
 
     // 检查是否加载到有效网格，有则加入网格库
-    if (!currentMesh.triangles.empty() || !currentMesh.vertexs.empty())
+    if (!currentMesh.triangles.empty() || !currentMesh.vertices.empty())
     {
         m_meshes.push_back(currentMesh);
         qInfo() << "Loaded OBJ successfully:" << objPath;
-        qInfo() << " - Vertices:" << currentMesh.vertexs.size();
+        qInfo() << " - Vertices:" << currentMesh.vertices.size();
         qInfo() << " - Triangles:" << currentMesh.triangles.size();
         qInfo() << " - Material ID:" << currentMesh.materialID;
         return true;

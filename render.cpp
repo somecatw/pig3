@@ -1,11 +1,12 @@
 #include "render.h"
 #include "utils.h"
 #include <QDebug>
-#include "assetmanager.h"
+#include "shaders.h"
 using namespace std;
 
 
-ShadingUnit shadingBuffer[640][480];
+// ShadingUnit shadingBuffer[640][480];
+
 
 Vertex vertexIntersect(const Vertex &a, const Vertex &b, const Plane &p){
     Vec3 intersection = p.intersect(link(a.pos, b.pos));
@@ -167,81 +168,29 @@ public:
             calcLinearCoefficient(current.v_z, {v0.pos.x, v0.pos.y, v0.uv.y}, e0, e2);
         }
     }
-    tuple<float, float, float, float> fragmentBBox(const Fragment &fragment){
-        return {
-            min({fragment.v2d[0].x, fragment.v2d[1].x, fragment.v2d[2].x}),
-            min({fragment.v2d[0].y, fragment.v2d[1].y, fragment.v2d[2].y}),
-            max({fragment.v2d[0].x, fragment.v2d[1].x, fragment.v2d[2].x}),
-            max({fragment.v2d[0].y, fragment.v2d[1].y, fragment.v2d[2].y})
-        };
-    }
+
     void bfRasterization(){
         for(const Fragment& frag:fragments){
-            auto [xmin, ymin, xmax, ymax] = fragmentBBox(frag);
-
-            EdgeIterator edgeIt = frag.edgeIterator;
-            Iterator2D zInv = frag.zInv;
-            Iterator2D u_z = frag.u_z;
-            Iterator2D v_z = frag.v_z;
-
-            int xlt = max(0, (int)xmin);
-            int ylt = max(0, (int)ymin);
-            int xrb = min((int)pixelW-1, (int)xmax);
-            int yrb = min((int)pixelH-1, (int)ymax);
-
-            edgeIt.batchIterate(xlt, ylt);
-            zInv.batchIterate(xlt, ylt);
-            u_z.batchIterate(xlt, ylt);
-            v_z.batchIterate(xlt, ylt);
-
-            for(int x = xlt; x <= xrb; x++){
-                EdgeIterator tempEdgeIt = edgeIt;
-                Iterator2D tempZInv = zInv;
-                Iterator2D tempUZ = u_z;
-                Iterator2D tempVZ = v_z;
-
-                for(int y = ylt; y <= yrb; y++){
-                    int edgeResult = tempEdgeIt.check();
-                    if(edgeResult == EdgeIterator::INNER){
-                        if(shadingBuffer[x][y].zInv < tempZInv.val){
-                            shadingBuffer[x][y].triangleID = frag.triangleID;
-                            shadingBuffer[x][y].zInv = tempZInv.val;
-                            shadingBuffer[x][y].u_z = tempUZ.val;
-                            shadingBuffer[x][y].v_z = tempVZ.val;
-                        }
-                    }
-                    tempEdgeIt.yIterate();
-                    tempZInv.yIterate();
-                    tempUZ.yIterate();
-                    tempVZ.yIterate();
-                }
-                edgeIt.xIterate();
-                zInv.xIterate();
-                u_z.xIterate();
-                v_z.xIterate();
-            }
+            ushort shaderConfig = triangles[frag.triangleID].shaderConfig;
+            if(shaderConfig & ShaderConfig::WireframeOnly)
+                segmentRasterization<WireframeShader>(frag, pixelW, pixelH);
+            else
+                segmentRasterization<BaseShader>(frag, pixelW, pixelH);
         }
     }
     void determineColor(){
-        const Material &material = assetManager.getMaterials()[0];
-
-        int w = material.img.width();
-        int h = material.img.height();
-
         for(uint y = 0; y < pixelH; y++){
             for(uint x = 0; x < pixelW; x++){
                 uint colorRef = 0xff000000;
 
-
-                if(shadingBuffer[x][y].triangleID <= 10000){
-                    float u = shadingBuffer[x][y].u_z / shadingBuffer[x][y].zInv;
-                    float v = shadingBuffer[x][y].v_z / shadingBuffer[x][y].zInv;
-                    assert(0<=u && u<=1 && 0<=v && v<=1);
-                    int rx = int(u*w);
-                    int ry = int(v*h);
-                    colorRef = material.img.pixel(rx, ry);
-                    // colorRef = 0xff33f6d4;
+                if(shadingBuffer.triangleID[x][y] <= 10000){
+                    ushort shaderConfig = triangles[shadingBuffer.triangleID[x][y]].shaderConfig;
+                    if(shaderConfig & ShaderConfig::WireframeOnly)
+                        colorRef = colorDetermination<WireframeShader>(x, y);
+                    else
+                        colorRef = colorDetermination<BaseShader>(x, y);
                 }
+
                 buffer[y*pixelW + x] = colorRef;
             }
         }
@@ -266,8 +215,8 @@ public:
 
         for(uint i=0;i<640;i++){
             for(uint j=0;j<480;j++){
-                shadingBuffer[i][j].zInv = 0.0f;
-                shadingBuffer[i][j].triangleID = 0x80000000u;
+                shadingBuffer.zInv[i][j] = 0.0f;
+                shadingBuffer.triangleID[i][j] = 0x80000000u;
             }
         }
 
