@@ -27,6 +27,7 @@ struct Vertex{
 // 3D 的三角形
 struct Triangle{
     uint vid[3];
+    Vec3 hardNormal;
     ushort materialID;
     ushort shaderConfig = 0;
 };

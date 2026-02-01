@@ -6,6 +6,7 @@
 
 struct ShadingBuffer{
     constexpr static int W=640, H=480;
+
     uint triangleID[W][H];
     float zInv[W][H], u_z[W][H], v_z[W][H];
 
@@ -19,9 +20,9 @@ std::tuple<float, float, float, float> fragmentBBox(const Fragment &fragment){
         std::max({fragment.v2d[0].y, fragment.v2d[1].y, fragment.v2d[2].y})
     };
 }
-template<typename T> concept IsShader = requires(uint triangleID, const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
-    {T::alphaTest(triangleID, edgeIt, zInv, u_z, v_z)} -> std::same_as<bool>;
-    {T::colorSample(int(), int())} -> std::same_as<uint>;
+template<typename T> concept IsShader = requires(const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
+    {T::alphaTest(uint(), edgeIt, zInv, u_z, v_z)} -> std::same_as<bool>;
+    {T::colorSample(int(), int(), Vec3())} -> std::same_as<uint>;
 };
 
 class BaseShader{
@@ -31,7 +32,7 @@ public:
         return edgeIt.check() == EdgeIterator::INNER;
     }
     // 在着色阶段，算出当前像素的颜色。输入的 x 和 y 是屏幕像素坐标；此函数只在 alphaTest 返回 true 的像素上执行
-    uint static colorSample(int x, int y){
+    uint static colorSample(int x, int y, Vec3 view){
         const Material &material = assetManager.getMaterials()[0];
 
         int w = material.img.width();
@@ -60,7 +61,7 @@ public:
         if(ttfa == 4 || ttfa == 5) return true;
         else return false;
     }
-    uint static colorSample(int x, int y){
+    uint static colorSample(int x, int y, const Vec3 &view){
         return 0xff00ff00;
     }
 };
@@ -118,8 +119,8 @@ requires IsShader<FragmentShader> void segmentRasterization(const Fragment &frag
 }
 
 template<typename FragmentShader>
-requires IsShader<FragmentShader> uint colorDetermination(int x, int y){
-    return FragmentShader::colorSample(x, y);
+requires IsShader<FragmentShader> uint colorDetermination(int x, int y, const Vec3 &view){
+    return FragmentShader::colorSample(x, y, view);
 }
 
 #endif // SHADERS_H

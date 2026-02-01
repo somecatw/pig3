@@ -172,6 +172,12 @@ bool AssetManager::loadOBJ(const QString& objPath)
                 // 给三角形赋值顶点下标
                 tri.vid[i] = vertexMap[key];
             }
+            Vec3 v0 = tempPos[tri.vid[0]];
+            Vec3 v1 = tempPos[tri.vid[1]];
+            Vec3 v2 = tempPos[tri.vid[2]];
+
+            tri.hardNormal = (v1-v0).cross(v2-v0);
+            tri.hardNormal.normalize();
 
             currentMesh.triangles.push_back(tri);
         }

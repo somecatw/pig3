@@ -14,6 +14,13 @@ Vertex vertexIntersect(const Vertex &a, const Vertex &b, const Plane &p){
     Vec3 interpolatedUV = a.uv * (1.0f-c) + b.uv * c;
     return {intersection, interpolatedUV};
 }
+uint simpleLightBlend(uint color, float intensity){
+    assert(0 <= intensity && intensity <= 1);
+    uint r = (color & (0x00ff0000)) >> 16;
+    uint g = (color & (0x0000ff00)) >> 8;
+    uint b = color & 0x000000ff;
+    return 0xff000000 | (uint(r*intensity) << 16) | (uint(g*intensity) << 8) | (uint(b*intensity));
+}
 class Renderer{
 private:
     vector<Vertex> vertices;
@@ -126,6 +133,12 @@ public:
     void getFragments(){
         fragments.reserve(triangles.size());
         for(auto [id, triangle]: enumerate(triangles)){
+
+            triangle.hardNormal = (vertices[triangle.vid[2]].pos - vertices[triangle.vid[0]].pos).cross(vertices[triangle.vid[1]].pos-vertices[triangle.vid[0]].pos);
+            triangle.hardNormal.normalize();
+
+            if(triangle.hardNormal.dot(camera.frame.axisZ) < 0) continue;
+
             fragments.push_back(Fragment());
             Fragment &current = fragments.back();
 
@@ -180,20 +193,37 @@ public:
         }
     }
     void determineColor(){
+        Vec3 view = camera.pos + camera.focalLength*camera.frame.axisZ
+                    - camera.screenSize.x/2 * camera.frame.axisX
+                    - camera.screenSize.y/2 * camera.frame.axisY;
+
+        Vec3 dx = 1.0f / pixelW * camera.screenSize.x * camera.frame.axisX;
+        Vec3 dy = 1.0f / pixelH * camera.screenSize.y * camera.frame.axisY;
+
+        Vec3 sunLight = {1, -1, -1};
+        sunLight.normalize();
+
         for(uint y = 0; y < pixelH; y++){
+            Vec3 tmpView = view;
             for(uint x = 0; x < pixelW; x++){
                 uint colorRef = 0xff000000;
 
                 if(shadingBuffer.triangleID[x][y] <= 10000){
                     ushort shaderConfig = triangles[shadingBuffer.triangleID[x][y]].shaderConfig;
                     if(shaderConfig & ShaderConfig::WireframeOnly)
-                        colorRef = colorDetermination<WireframeShader>(x, y);
+                        colorRef = colorDetermination<WireframeShader>(x, y, tmpView);
                     else
-                        colorRef = colorDetermination<BaseShader>(x, y);
+                        colorRef = colorDetermination<BaseShader>(x, y, tmpView);
+
+                    float lightIntensity = -sunLight.dot(triangles[shadingBuffer.triangleID[x][y]].hardNormal) * 0.5f + 0.5f;
+                    colorRef = simpleLightBlend(colorRef, lightIntensity);
+
                 }
+                tmpView += dx;
 
                 buffer[y*pixelW + x] = colorRef;
             }
+            view += dy;
         }
     }
     void drawFrame(const std::vector<Vertex> &_vertices, const std::vector<Triangle> &_triangles, const CameraInfo &_camera, uint *_buffer){
