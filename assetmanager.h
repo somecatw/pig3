@@ -27,6 +27,11 @@ private:
     std::vector<Material> m_materials;
 };
 
+class SceneManager{
+public:
+
+};
+
 extern AssetManager assetManager;
 
 #endif // ASSETMANAGER_H

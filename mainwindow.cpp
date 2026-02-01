@@ -27,16 +27,10 @@ void MainWindow::updateFrame(){
     uint *ptr=(uint*)img->bits();
 
     ttfa.applyTransform(Transform::rotateAroundAxis({0,1,0}, 0.015));
+    // ttfa.shaderConfig = ShaderConfig::DisableBackCulling | ShaderConfig::WireframeOnly;
 
-    vector<Vertex> vertices = ttfa.vertices;
-    vector<Triangle> triangles = ttfa.triangles;
-    // for(auto &t:triangles)
-    //    t.shaderConfig |= ShaderConfig::WireframeOnly;
-
-    // vector<Vertex> vertices = {{{0,0,0},{0,0,0}},{{0,0,2},{0,0,0}},{{0,2,0},{0,0,0}},{{0,2,2},{0,0,0}},
-    //                            {{2,0,0},{0,0,0}},{{2,0,2},{0,0,0}},{{2,2,0},{0,0,0}},{{2,2,2},{0,0,0}}};
-    // vector<Triangle> triangles = {{0,1,2},{1,2,3},{0,4,6},{0,2,6},{4,5,6},{5,6,7},{0,4,5},{0,1,5},{2,6,3},{3,6,7},{1,3,5},{3,5,7}};
-    //vector<Triangle> triangles = {{3,6,7}};
+    clearRenderBuffer();
+    submitMesh(ttfa);
 
     CameraInfo cam;
     cam.focalLength = 4.0f;
@@ -50,7 +44,7 @@ void MainWindow::updateFrame(){
     cam.frame.axisZ = cam.frame.axisX.cross(cam.frame.axisY);
     qDebug()<<cam.frame.axisZ.to_string();
     cam.screenSize = {8, 5.6, 0};
-    drawFrame(vertices, triangles, cam, ptr);
+    drawFrame(cam, ptr);
     label->setPixmap(QPixmap::fromImage(*img));
 
 }

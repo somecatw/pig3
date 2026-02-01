@@ -7,6 +7,22 @@ using namespace std;
 
 // ShadingUnit shadingBuffer[640][480];
 
+namespace ShaderInternal{
+    vector<Vertex> vertices;
+    vector<Triangle> triangles;
+    CameraInfo camera;
+    uint *buffer;
+
+    uint pixelW, pixelH;
+
+    // (x, y, 4096.0f/z)
+    vector<Vertex> projectedVertices;
+
+    vector<Fragment> fragments;
+}
+
+using namespace ShaderInternal;
+
 
 Vertex vertexIntersect(const Vertex &a, const Vertex &b, const Plane &p){
     Vec3 intersection = p.intersect(link(a.pos, b.pos));
@@ -23,17 +39,7 @@ uint simpleLightBlend(uint color, float intensity){
 }
 class Renderer{
 private:
-    vector<Vertex> vertices;
-    vector<Triangle> triangles;
-    CameraInfo camera;
-    uint *buffer;
 
-    uint pixelW, pixelH;
-
-    // (x, y, 4096.0f/z)
-    vector<Vertex> projectedVertices;
-
-    vector<Fragment> fragments;
 
 public:
     void vertexProject(){
@@ -137,7 +143,10 @@ public:
             triangle.hardNormal = (vertices[triangle.vid[2]].pos - vertices[triangle.vid[0]].pos).cross(vertices[triangle.vid[1]].pos-vertices[triangle.vid[0]].pos);
             triangle.hardNormal.normalize();
 
-            if(triangle.hardNormal.dot(camera.frame.axisZ) < 0) continue;
+            if(!(triangle.shaderConfig & ShaderConfig::DisableBackCulling)){
+
+                if(triangle.hardNormal.dot(camera.frame.axisZ) < 0) continue;
+            }
 
             fragments.push_back(Fragment());
             Fragment &current = fragments.back();
@@ -226,9 +235,9 @@ public:
             view += dy;
         }
     }
-    void drawFrame(const std::vector<Vertex> &_vertices, const std::vector<Triangle> &_triangles, const CameraInfo &_camera, uint *_buffer){
-        vertices   = _vertices;
-        triangles = _triangles;
+    void drawFrame(const CameraInfo &_camera, uint *_buffer){
+        // vertices   = _vertices;
+        // triangles = _triangles;
         camera = _camera;
         buffer = _buffer;
         projectedVertices.clear();
@@ -268,8 +277,32 @@ public:
         qDebug()<<"total                 |"<<t5-t0;
         // 土法 profiling
     }
+    friend void clearRenderBuffer();
+    friend void submitMesh(const Mesh &mesh);
 }renderer;
 
-void drawFrame(const std::vector<Vertex> &vertices, const std::vector<Triangle> &triangles, const CameraInfo &camera, uint *buffer){
-    renderer.drawFrame(vertices, triangles, camera, buffer);
+void drawFrame(const CameraInfo &camera, uint *buffer){
+    renderer.drawFrame(camera, buffer);
+}
+
+void clearRenderBuffer(){
+    vertices.clear();
+    triangles.clear();
+}
+
+void submitMesh(const Mesh &mesh){
+    uint n = vertices.size();
+    for(const Vertex &v:mesh.vertices){
+        vertices.push_back(v);
+    }
+    for(const Triangle &t:mesh.triangles){
+        triangles.push_back(t);
+        Triangle &curr = triangles.back();
+
+        curr.materialID = mesh.materialID;
+        curr.shaderConfig = mesh.shaderConfig;
+        curr.vid[0] += n;
+        curr.vid[1] += n;
+        curr.vid[2] += n;
+    }
 }

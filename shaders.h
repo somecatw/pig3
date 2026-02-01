@@ -4,6 +4,16 @@
 #include "structures.h"
 #include "assetmanager.h"
 
+namespace ShaderInternal{
+    extern std::vector<Vertex> vertices;
+    extern std::vector<Triangle> triangles;
+    extern CameraInfo camera;
+    extern uint *buffer;
+    extern uint pixelW, pixelH;
+    extern std::vector<Vertex> projectedVertices;
+    extern std::vector<Fragment> fragments;
+}
+
 struct ShadingBuffer{
     constexpr static int W=640, H=480;
 
@@ -33,7 +43,9 @@ public:
     }
     // 在着色阶段，算出当前像素的颜色。输入的 x 和 y 是屏幕像素坐标；此函数只在 alphaTest 返回 true 的像素上执行
     uint static colorSample(int x, int y, Vec3 view){
-        const Material &material = assetManager.getMaterials()[0];
+        uint materialID = ShaderInternal::triangles[shadingBuffer.triangleID[x][y]].materialID;
+
+        const Material &material = assetManager.getMaterials()[materialID];
 
         int w = material.img.width();
         int h = material.img.height();

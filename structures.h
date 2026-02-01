@@ -10,10 +10,11 @@ const int tileSize = 64;
 
 struct ShaderConfig{
     static constexpr ushort
-        WireframeOnly  = 0x0001,
-        UseAlphaBitmap = 0x0002,
-        MonoChrome     = 0x0004,
-        UseLightModel  = 0x0008;
+        WireframeOnly      = 0x0001,
+        UseAlphaBitmap     = 0x0002,
+        MonoChrome         = 0x0004,
+        UseLightModel      = 0x0008,
+        DisableBackCulling = 0x0010;
 };
 
 struct Material{
