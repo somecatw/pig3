@@ -1,6 +1,7 @@
 #ifndef MATHBASE
 #define MATHBASE
 
+#include <cassert>
 #include <cmath>
 #include <array>
 #include <algorithm>
@@ -17,6 +18,9 @@ class Vec3{
     }  
     Vec3 operator -(const Vec3& other)const{
         return {x-other.x, y-other.y, z-other.z};
+    }
+    Vec3 operator -()const{
+        return {-x, -y, -z};
     }
     float dot(const Vec3& other)const{
         return x*other.x + y*other.y + z*other.z;
@@ -91,7 +95,7 @@ class Mat3{
     std::array<float, 3>& operator [](int index){
         return val[index];
     }
-    Vec3 Row(int r)const{
+    Vec3 row(int r)const{
         return {val[r][0], val[r][1], val[r][2]};
     }
     Mat3 operator+ (const Mat3& other)const{
@@ -117,12 +121,21 @@ class Mat3{
                 }
         return ret;
     }
-    Mat3 Transpose()const{
+    Mat3 &operator *= (const Mat3 &other){
+        *this = (*this) * other;
+        return *this;
+    }
+    Mat3 transpose()const{
         Mat3 ret = *this;
         std::swap(ret.val[0][1], ret.val[1][0]);
         std::swap(ret.val[0][2], ret.val[2][0]);
         std::swap(ret.val[1][2], ret.val[2][1]);
         return ret;
+    }
+    Mat3 inverse()const{
+        // 懒得写高斯消元了
+        throw std::runtime_error("not implemented!");
+        return *this;
     }
     Mat3 operator *(float f){
         Mat3 ret=*this;

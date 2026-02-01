@@ -4,6 +4,7 @@
 #include "mathbase.h"
 #include <vector>
 #include <QImage>
+#include "transform.h"
 
 const int tileSize = 64;
 
@@ -36,6 +37,13 @@ struct Mesh{
     std::vector<Vertex> vertices;
     ushort materialID;
     ushort shaderConfig = 0;
+
+    void applyTransform(const Transform &t){
+        for(Vertex &v:vertices){
+            v.pos = v.pos*t.rotation;
+            v.pos += t.translation;
+        }
+    }
 };
 
 struct Iterator2D{
@@ -95,10 +103,6 @@ struct ShadingUnit{
 
 struct Tile{
     ShadingUnit buf[tileSize][tileSize];
-};
-
-struct LocalFrame{
-    Vec3 axisX, axisY, axisZ;
 };
 
 struct CameraInfo{

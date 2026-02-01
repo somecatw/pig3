@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QImage>
 #include <QTimer>
+#include "structures.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -27,5 +28,6 @@ private:
     QImage *img;
     QLabel *label;
     QTimer *timer;
+    Mesh ttfa;
 };
 #endif // MAINWINDOW_H

@@ -57,12 +57,11 @@ public:
         // 可能在 triangles 末尾填充切分出的新三角形
         vector<pair<uint, Vertex>> front, back;
 
-        uint n = triangles.size();
         Vec3 screenCenter = camera.pos + camera.focalLength * camera.frame.axisZ;
         Plane cameraPlane = {screenCenter, camera.frame.axisZ};
+        vector<Triangle> tmpTriangles;
 
         for(auto [id, triangle]: enumerate(triangles)){
-            if(id>=n) break;
 
             front.clear();
             back.clear();
@@ -97,7 +96,7 @@ public:
                 tmp.vid[0] = id0;
                 tmp.vid[1] = id1;
                 tmp.vid[2] = front[1].first;
-                triangles.push_back(tmp);
+                tmpTriangles.push_back(tmp);
                 continue;
             }
             if(front.size() == 1u && back.size() == 2u){
@@ -117,10 +116,12 @@ public:
             }
             throw runtime_error("how did we get here?");
         }
+
         triangles.erase(
             remove_if(triangles.begin(), triangles.end(), [](const Triangle &t){return t.vid[0]==-1;}),
             triangles.end()
             );
+        for(const Triangle &t: tmpTriangles) triangles.push_back(t);
     }
     void getFragments(){
         fragments.reserve(triangles.size());
@@ -206,8 +207,6 @@ public:
         pixelW = camera.width * tileSize;
         pixelH = camera.height * tileSize;
 
-        qDebug()<<pixelW<<pixelH;
-
         if(pixelW > 640)
             throw runtime_error("width "+to_string(pixelW)+" is too wide for buffer");
         if(pixelH > 480)
@@ -219,25 +218,24 @@ public:
                 shadingBuffer.triangleID[i][j] = 0x80000000u;
             }
         }
-
         auto t0 = std::chrono::system_clock::now();
-        qDebug()<<"stage1: frontclip";
         frontClip();
         auto t1 = std::chrono::system_clock::now();
-        qDebug()<<"stage2: vertexProject";
+        qDebug()<<"stage1: frontclip     |"<<t1-t0;
         vertexProject();
         auto t2 = std::chrono::system_clock::now();
-        qDebug()<<"stage3: getFragments";
+        qDebug()<<"stage2: vertexProject |"<<t2-t1;
         getFragments();
         auto t3 = std::chrono::system_clock::now();
-        qDebug()<<"stage4: rasterization";
+        qDebug()<<"stage3: getFragments  |"<<t3-t2;
         bfRasterization();
         auto t4 = std::chrono::system_clock::now();
-        qDebug()<<"stage5: color";
+        qDebug()<<"stage4: rasterization |"<<t4-t3;
         determineColor();
-        qDebug()<<"complete!";
         auto t5 = std::chrono::system_clock::now();
-        qDebug()<<t1-t0<<t2-t1<<t3-t2<<t4-t3<<t5-t4;
+        qDebug()<<"stage5: color         |"<<t5-t4;
+        qDebug()<<"---------------------------------";
+        qDebug()<<"total                 |"<<t5-t0;
         // 土法 profiling
     }
 }renderer;
