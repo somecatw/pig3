@@ -84,6 +84,34 @@ public:
     }
 };
 
+class MonoChromeShader : public BaseShader{
+public:
+    bool static alphaTest(uint triangleID, const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
+        return edgeIt.check() == EdgeIterator::INNER;
+    }
+    uint static colorSample(int x, int y, const Vec3 &view) {
+        uint materialID = ShaderInternal::triangles[shadingBuffer.triangleID[x][y]].materialID;
+
+        const Material &material = assetManager.getMaterials()[materialID];
+
+        int w = material.img.width();
+        int h = material.img.height();
+
+        float u = shadingBuffer.u_z[x][y] / shadingBuffer.zInv[x][y];
+        float v = shadingBuffer.v_z[x][y] / shadingBuffer.zInv[x][y];
+        assert(0<=u && u<=1 && 0<=v && v<=1);
+        int rx = int(u*w);
+        int ry = int(v*h);
+
+        uint color = material.img.pixel(rx, ry);
+        uint r = (color & 0x00ff0000) >> 16;
+        uint g = (color & 0x0000ff00) >> 8;
+        uint b = (color & 0x000000ff);
+        uint gray = static_cast<uint>(r * 0.299 + g * 0.587 + b * 0.114);
+        return (color & 0xff000000) | (gray << 16) | (gray << 8) | gray;
+    }
+};
+
 // 所有涉及部分透明面片的逻辑在这里实现，包括线框渲染，单片草之类的
 template<typename FragmentShader>
 requires IsShader<FragmentShader> void segmentRasterization(const Fragment &frag, int pixelW, int pixelH){

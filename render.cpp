@@ -197,6 +197,8 @@ public:
             ushort shaderConfig = triangles[frag.triangleID].shaderConfig;
             if(shaderConfig & ShaderConfig::WireframeOnly)
                 segmentRasterization<WireframeShader>(frag, pixelW, pixelH);
+            else if (shaderConfig & ShaderConfig::MonoChrome)
+                segmentRasterization<MonoChromeShader>(frag, pixelW, pixelH);
             else
                 segmentRasterization<BaseShader>(frag, pixelW, pixelH);
         }
@@ -224,6 +226,8 @@ public:
                     // 静态转发逻辑
                     if(shaderConfig & ShaderConfig::WireframeOnly)
                         colorRef = colorDetermination<WireframeShader>(x, y, tmpView);
+                    else if (shaderConfig & ShaderConfig::MonoChrome)
+                        colorRef = colorDetermination<MonoChromeShader>(x, y, tmpView);
                     else
                         colorRef = colorDetermination<BaseShader>(x, y, tmpView);
 
