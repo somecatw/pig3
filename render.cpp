@@ -31,7 +31,7 @@ Vertex vertexIntersect(const Vertex &a, const Vertex &b, const Plane &p){
     return {intersection, interpolatedUV};
 }
 uint simpleLightBlend(uint color, float intensity){
-    assert(0 <= intensity && intensity <= 1);
+    // assert(0 <= intensity && intensity <= 1);
     uint r = (color & (0x00ff0000)) >> 16;
     uint g = (color & (0x0000ff00)) >> 8;
     uint b = color & 0x000000ff;
@@ -145,7 +145,7 @@ public:
 
             if(!(triangle.shaderConfig & ShaderConfig::DisableBackCulling)){
 
-                if(triangle.hardNormal.dot(camera.frame.axisZ) < 0) continue;
+                if(triangle.hardNormal.dot(vertices[triangle.vid[2]].pos - camera.pos) < 0) continue;
             }
 
             fragments.push_back(Fragment());
@@ -212,27 +212,32 @@ public:
         Vec3 sunLight = {1, -1, -1};
         sunLight.normalize();
 
-        for(uint y = 0; y < pixelH; y++){
+        for(uint y = 0; y < pixelH; y++)
+        {
             Vec3 tmpView = view;
             for(uint x = 0; x < pixelW; x++){
                 uint colorRef = 0xff000000;
 
-                if(shadingBuffer.triangleID[x][y] <= 10000){
-                    ushort shaderConfig = triangles[shadingBuffer.triangleID[x][y]].shaderConfig;
+                if(shadingBuffer.triangleID[y][x] < 0x80000000){
+                    ushort shaderConfig = triangles[shadingBuffer.triangleID[y][x]].shaderConfig;
+
+                    // 静态转发逻辑
                     if(shaderConfig & ShaderConfig::WireframeOnly)
                         colorRef = colorDetermination<WireframeShader>(x, y, tmpView);
                     else
                         colorRef = colorDetermination<BaseShader>(x, y, tmpView);
 
-                    float lightIntensity = -sunLight.dot(triangles[shadingBuffer.triangleID[x][y]].hardNormal) * 0.5f + 0.5f;
-                    colorRef = simpleLightBlend(colorRef, lightIntensity);
-
+                    if(!(shaderConfig & ShaderConfig::DisableLightModel)){
+                        // 对于简单光照，这一步可以提前；
+                        // 如果是平滑光照，则需要逐像素的法线插值，但也不需要在这里算
+                        float lightIntensity = -sunLight.dot(triangles[shadingBuffer.triangleID[y][x]].hardNormal) * 0.5f + 0.5f;
+                        colorRef = simpleLightBlend(colorRef, lightIntensity);
+                    }
                 }
-                tmpView += dx;
-
+                tmpView += dy;
                 buffer[y*pixelW + x] = colorRef;
             }
-            view += dy;
+            view += dx;
         }
     }
     void drawFrame(const CameraInfo &_camera, uint *_buffer){
@@ -246,15 +251,16 @@ public:
         pixelW = camera.width * tileSize;
         pixelH = camera.height * tileSize;
 
-        if(pixelW > 640)
+        if(pixelW > ShadingBuffer::W)
             throw runtime_error("width "+to_string(pixelW)+" is too wide for buffer");
-        if(pixelH > 480)
+        if(pixelH > ShadingBuffer::H)
             throw runtime_error("height "+to_string(pixelH)+" is too high for buffer");
 
-        for(uint i=0;i<640;i++){
-            for(uint j=0;j<480;j++){
-                shadingBuffer.zInv[i][j] = 0.0f;
-                shadingBuffer.triangleID[i][j] = 0x80000000u;
+        for(uint j=0;j<pixelH;j++)
+        {
+            for(uint i=0;i<pixelW;i++){
+                shadingBuffer.zInv[j][i] = 0.0f;
+                shadingBuffer.triangleID[j][i] = 0x80000000u;
             }
         }
         auto t0 = std::chrono::system_clock::now();
@@ -288,6 +294,7 @@ void drawFrame(const CameraInfo &camera, uint *buffer){
 void clearRenderBuffer(){
     vertices.clear();
     triangles.clear();
+
 }
 
 void submitMesh(const Mesh &mesh){

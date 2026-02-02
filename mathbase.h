@@ -167,6 +167,13 @@ class Mat3{
             v.x*m.val[0][2]+v.y*m.val[1][2]+v.z*m.val[2][2],
         };
     }
+    static Mat3 eye(){
+        return {
+            {1, 0, 0},
+            {0, 1, 0},
+            {0, 0, 1}
+        };
+    }
 };
 
 const static float eps=1e-6;

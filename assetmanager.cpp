@@ -26,178 +26,168 @@ static std::vector<std::string> splitString(const std::string& str, char delimit
     return parts;
 }
 
-// 加载MTL文件（仅解析漫反射贴图map_Kd）
-bool AssetManager::loadMTL(const QString& mtlPath, const QString& baseDir)
+std::map<QString, int> AssetManager::loadMTL(const QString& mtlPath, const QString& baseDir)
 {
+    std::map<QString, int> mtlMap;
     QFile mtlFile(mtlPath);
-    if (!mtlFile.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        qWarning() << "Failed to open MTL file:" << mtlPath;
-        return false;
+    if (!mtlFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "[MTL] Failed to open:" << mtlPath;
+        return mtlMap;
     }
 
-    Material newMat;
+    qInfo() << "[MTL] Parsing file:" << mtlPath;
+
     QTextStream in(&mtlFile);
-    while (!in.atEnd())
-    {
-        QString line = in.readLine().simplified();  // 去除首尾空格+合并中间空格
-        if (line.isEmpty() || line.startsWith('#')) // 跳过空行和注释
-            continue;
+    QString currentMtlName;
+    Material currentMat;
+    bool hasMat = false;
 
+    while (!in.atEnd()) {
+        QString line = in.readLine().simplified();
+        if (line.isEmpty() || line.startsWith('#')) continue;
         std::vector<std::string> parts = splitString(line.toStdString());
-        if (parts.empty())
-            continue;
 
-        // 解析漫反射贴图：map_Kd 贴图路径.png
-        if (parts[0] == "map_Kd")
-        {
-            if (parts.size() < 2)
-                continue;
-            // 贴图路径是相对MTL的，转成绝对路径（基于OBJ所在目录）
+        if (parts[0] == "newmtl") {
+            // 保存上一个解析完的材质
+            if (hasMat) {
+                m_materials.push_back(currentMat);
+                mtlMap[currentMtlName] = m_materials.size() - 1;
+                qInfo() << " - Material defined:" << currentMtlName << "ID:" << (m_materials.size() - 1);
+            }
+            currentMtlName = (parts.size() > 1) ? QString::fromStdString(parts[1]) : "default";
+            currentMat = Material();
+            hasMat = true;
+        }
+        else if (parts[0] == "map_Kd" && hasMat) {
             QString texRelPath = QString::fromStdString(parts[1]);
             QString texAbsPath = QDir(baseDir).absoluteFilePath(texRelPath);
-            // 加载贴图（QImage支持png/jpg/bmp等常见格式）
-            newMat.img = QImage(texAbsPath);
-            // newMat.texPath = texAbsPath;
-            if (newMat.img.isNull())
-            {
-                qWarning() << "Failed to load texture:" << texAbsPath;
-                continue;
+            currentMat.img = QImage(texAbsPath);
+            if (currentMat.img.isNull()) {
+                qWarning() << "  [!] Failed to load texture:" << texAbsPath;
+            } else {
+                qInfo() << "  [+] Texture loaded:" << texAbsPath;
             }
-            qInfo() << "Loaded texture:" << texAbsPath;
-            break; // 暂时只加载一个漫反射贴图
         }
+    }
+
+    // 别忘了保存最后一个材质块
+    if (hasMat) {
+        m_materials.push_back(currentMat);
+        mtlMap[currentMtlName] = m_materials.size() - 1;
+        qInfo() << " - Material defined:" << currentMtlName << "ID:" << (m_materials.size() - 1);
     }
 
     mtlFile.close();
-    m_materials.push_back(newMat); // 加入材质库，ID为当前下标
-    return true;
+    return mtlMap;
 }
-
-// 核心：加载OBJ文件
 bool AssetManager::loadOBJ(const QString& objPath)
 {
     QFile objFile(objPath);
-    if (!objFile.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        qWarning() << "Failed to open OBJ file:" << objPath;
+    if (!objFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "[OBJ] Failed to open:" << objPath;
         return false;
     }
 
-    // 初始化临时变量：存储OBJ原始的v/vt，当前网格，顶点映射表
-    std::vector<Vec3> tempPos;    // 临时存储OBJ的v指令（顶点位置）
-    std::vector<Vec3> tempUV;     // 临时存储OBJ的vt指令（UV坐标）
-    Mesh currentMesh;             // 当前正在构建的网格
-    // 顶点映射表：(pos索引, uv索引) -> currentMesh.vertexs的下标，避免重复顶点
+    qInfo() << "[OBJ] Loading:" << objPath;
+
+    std::vector<Vec3> tempPos;
+    std::vector<Vec3> tempUV;
+    std::map<QString, int> mtlNameToId;
+
+    Mesh currentMesh;
+    currentMesh.materialID = -1;
     std::map<std::pair<uint, uint>, uint> vertexMap;
-    QString objBaseDir = QFileInfo(objPath).absolutePath(); // OBJ所在目录（解决相对路径）
 
+    QString objBaseDir = QFileInfo(objPath).absolutePath();
     QTextStream in(&objFile);
-    while (!in.atEnd())
-    {
-        QString line = in.readLine().simplified();
-        if (line.isEmpty() || line.startsWith('#'))
-            continue;
 
+    while (!in.atEnd()) {
+        QString line = in.readLine().simplified();
+        if (line.isEmpty() || line.startsWith('#')) continue;
         std::vector<std::string> parts = splitString(line.toStdString());
-        if (parts.empty())
-            continue;
+        if (parts.empty()) continue;
 
         std::string cmd = parts[0];
-        // 1. 解析顶点位置：v x y z
-        if (cmd == "v")
-        {
-            if (parts.size() < 4)
-                continue;
-            float x = std::stof(parts[1]);
-            float y = std::stof(parts[2]);
-            float z = std::stof(parts[3]);
-            tempPos.emplace_back(x, y, z);
+
+        if (cmd == "v") {
+            tempPos.emplace_back(std::stof(parts[1]), std::stof(parts[2]), std::stof(parts[3]));
         }
-        // 2. 解析UV坐标：vt u v（OBJ的UV是u/v，范围通常0~1，v轴上下翻转）
-        else if (cmd == "vt")
-        {
-            if (parts.size() < 3)
-                continue;
-            float u = std::stof(parts[1]);
-            float v = std::stof(parts[2]);
-            tempUV.emplace_back(u, 1.0-v, 0.0f); // UV用Vec3，z留0
+        else if (cmd == "vt") {
+            tempUV.emplace_back(std::stof(parts[1]), 1.0f - std::stof(parts[2]), 0.0f);
         }
-        // 3. 解析材质库引用：mtllib 材质文件.mtl
-        else if (cmd == "mtllib")
-        {
-            if (parts.size() < 2)
-                continue;
-            QString mtlRelPath = QString::fromStdString(parts[1]);
-            QString mtlAbsPath = QDir(objBaseDir).absoluteFilePath(mtlRelPath);
-            // 加载MTL并关联材质ID（当前材质库最后一个下标）
-            if (loadMTL(mtlAbsPath, objBaseDir))
-                currentMesh.materialID = m_materials.size() - 1;
+        else if (cmd == "mtllib") {
+            QString mtlAbsPath = QDir(objBaseDir).absoluteFilePath(QString::fromStdString(parts[1]));
+            auto newMtls = loadMTL(mtlAbsPath, objBaseDir);
+            mtlNameToId.insert(newMtls.begin(), newMtls.end());
         }
-        // 4. 解析面：f v1/vt1[/vn1] v2/vt2[/vn2] v3/vt3[/vn3]（忽略vn）
-        else if (cmd == "f")
-        {
-            if (parts.size() < 4) // f需要至少3个顶点（三角形）
-                continue;
-
-            Triangle tri;
-            // 处理三角形的3个顶点（parts[1], parts[2], parts[3]）
-            for (int i = 0; i < 3; ++i)
-            {
-                std::string vertexStr = parts[i + 1];
-                // 按/分割：提取pos索引和uv索引（跳过vn）
-                std::vector<std::string> vParts = splitString(vertexStr, '/');
-                if (vParts.size() < 2) // 必须有pos和uv，否则跳过
-                    continue;
-
-                // OBJ索引从1开始，转成0开始
-                uint posIdx = std::stoull(vParts[0]) - 1;
-                uint uvIdx = std::stoull(vParts[1]) - 1;
-
-                // 检查索引是否越界
-                if (posIdx >= tempPos.size() || uvIdx >= tempUV.size())
-                    continue;
-
-                // 检查是否已有该(pos,uv)组合，无则添加到顶点列表
-                std::pair<uint, uint> key = {posIdx, uvIdx};
-                if (vertexMap.find(key) == vertexMap.end())
-                {
-                    Vertex newVert;
-                    newVert.pos = tempPos[posIdx];
-                    newVert.uv = tempUV[uvIdx];
-                    vertexMap[key] = currentMesh.vertices.size();
-                    currentMesh.vertices.push_back(newVert);
-                }
-
-                // 给三角形赋值顶点下标
-                tri.vid[i] = vertexMap[key];
+        else if (cmd == "usemtl") {
+            QString mtlName = QString::fromStdString(parts[1]);
+            if (!currentMesh.triangles.empty()) {
+                m_meshes.push_back(currentMesh);
+                currentMesh = Mesh();
+                vertexMap.clear();
             }
-            Vec3 v0 = tempPos[tri.vid[0]];
-            Vec3 v1 = tempPos[tri.vid[1]];
-            Vec3 v2 = tempPos[tri.vid[2]];
-
-            tri.hardNormal = (v1-v0).cross(v2-v0);
-            tri.hardNormal.normalize();
-
-            currentMesh.triangles.push_back(tri);
+            if (mtlNameToId.count(mtlName)) {
+                currentMesh.materialID = mtlNameToId[mtlName];
+            } else {
+                currentMesh.materialID = -1;
+            }
         }
+        else if (cmd == "f") {
+            // parts[0] 是 "f"，后面可能有 3 个、4 个或更多顶点
+            if (parts.size() < 4) continue;
+
+            std::vector<uint> faceVertexIndices; // 存储当前面转换后的顶点索引
+            bool faceValid = true;
+
+            // 1. 先解析并存储该面所有的顶点
+            for (size_t i = 1; i < parts.size(); ++i) {
+                std::vector<std::string> vParts = splitString(parts[i], '/');
+                if (vParts.empty()) { faceValid = false; break; }
+
+                uint posIdx = std::stoull(vParts[0]) - 1;
+                uint uvIdx = (vParts.size() > 1 && !vParts[1].empty()) ? (std::stoull(vParts[1]) - 1) : 0;
+
+                if (posIdx >= tempPos.size()) { faceValid = false; break; }
+
+                // 使用 Map 复用顶点，减少冗余
+                std::pair<uint, uint> key = {posIdx, uvIdx};
+                if (vertexMap.find(key) == vertexMap.end()) {
+                    Vertex v;
+                    v.pos = tempPos[posIdx];
+                    v.uv = (uvIdx < tempUV.size()) ? tempUV[uvIdx] : Vec3(0, 0, 0);
+                    vertexMap[key] = (uint)currentMesh.vertices.size();
+                    currentMesh.vertices.push_back(v);
+                }
+                faceVertexIndices.push_back(vertexMap[key]);
+            }
+
+            if (!faceValid || faceVertexIndices.size() < 3) continue;
+
+            // 2. 扇形剖分：将多边形拆分为 (n-2) 个三角形
+            for (size_t i = 1; i < faceVertexIndices.size() - 1; ++i) {
+                Triangle tri;
+                tri.vid[0] = faceVertexIndices[0];
+                tri.vid[1] = faceVertexIndices[i];
+                tri.vid[2] = faceVertexIndices[i + 1];
+
+                // 计算该三角形的面法线
+                Vec3 v0 = currentMesh.vertices[tri.vid[0]].pos;
+                Vec3 v1 = currentMesh.vertices[tri.vid[1]].pos;
+                Vec3 v2 = currentMesh.vertices[tri.vid[2]].pos;
+                tri.hardNormal = (v1 - v0).cross(v2 - v0);
+                tri.hardNormal.normalize();
+
+                currentMesh.triangles.push_back(tri);
+            }
+        }
+    }
+
+    if (!currentMesh.triangles.empty()) {
+        m_meshes.push_back(currentMesh);
     }
 
     objFile.close();
-
-    // 检查是否加载到有效网格，有则加入网格库
-    if (!currentMesh.triangles.empty() || !currentMesh.vertices.empty())
-    {
-        m_meshes.push_back(currentMesh);
-        qInfo() << "Loaded OBJ successfully:" << objPath;
-        qInfo() << " - Vertices:" << currentMesh.vertices.size();
-        qInfo() << " - Triangles:" << currentMesh.triangles.size();
-        qInfo() << " - Material ID:" << currentMesh.materialID;
-        return true;
-    }
-    else
-    {
-        qWarning() << "No valid mesh data in OBJ:" << objPath;
-        return false;
-    }
+    qInfo() << "[OBJ] Load finished. Total SubMeshes:" << m_meshes.size();
+    return !m_meshes.empty();
 }

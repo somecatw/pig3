@@ -23,7 +23,7 @@ struct Transform
     static Transform rotateAroundAxis(Vec3 axis, float rad);
 
     static inline Transform translate(const Vec3 &v){
-        return {v};
+        return {v, Mat3::eye()};
     }
     static inline Transform rotateAroundPoint(const Vec3 &pos, const Vec3 &axis, float rad){
         return translate(pos) * rotateAroundAxis(axis, rad) * translate(-pos);

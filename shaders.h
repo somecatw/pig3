@@ -15,10 +15,11 @@ namespace ShaderInternal{
 }
 
 struct ShadingBuffer{
-    constexpr static int W=640, H=480;
+    constexpr static int W=1000, H=1000;
 
-    uint triangleID[W][H];
-    float zInv[W][H], u_z[W][H], v_z[W][H];
+    uint triangleID[H][W];
+    uint materialID[H][W];
+    float zInv[H][W], u_z[H][W], v_z[H][W];
 
 }shadingBuffer;
 
@@ -43,18 +44,23 @@ public:
     }
     // 在着色阶段，算出当前像素的颜色。输入的 x 和 y 是屏幕像素坐标；此函数只在 alphaTest 返回 true 的像素上执行
     uint static colorSample(int x, int y, Vec3 view){
-        uint materialID = ShaderInternal::triangles[shadingBuffer.triangleID[x][y]].materialID;
+        // uint materialID = ShaderInternal::triangles[shadingBuffer.triangleID[x][y]].materialID;
+
+        uint materialID = shadingBuffer.materialID[y][x];
 
         const Material &material = assetManager.getMaterials()[materialID];
 
         int w = material.img.width();
         int h = material.img.height();
 
-        float u = shadingBuffer.u_z[x][y] / shadingBuffer.zInv[x][y];
-        float v = shadingBuffer.v_z[x][y] / shadingBuffer.zInv[x][y];
-        assert(0<=u && u<=1 && 0<=v && v<=1);
-        int rx = int(u*w);
-        int ry = int(v*h);
+        float u = shadingBuffer.u_z[y][x] / shadingBuffer.zInv[y][x];
+        float v = shadingBuffer.v_z[y][x] / shadingBuffer.zInv[y][x];
+
+        int rx = int(u*w)%w;
+        int ry = int(v*h)%h;
+
+        if(rx<0) rx += w;
+        if(ry<0) ry += h;
 
         return material.img.pixel(rx, ry);
     }
@@ -98,35 +104,36 @@ requires IsShader<FragmentShader> void segmentRasterization(const Fragment &frag
     u_z.batchIterate(xlt, ylt);
     v_z.batchIterate(xlt, ylt);
 
-    for(int x = xlt; x <= xrb; x++){
+    for(int y = ylt; y <= yrb; y++){
         EdgeIterator tempEdgeIt = edgeIt;
         Iterator2D tempZInv = zInv;
         Iterator2D tempUZ = u_z;
         Iterator2D tempVZ = v_z;
         bool passFlag = false;
 
-        for(int y = ylt; y <= yrb; y++){
+        for(int x = xlt; x <= xrb; x++){
             bool result = FragmentShader::alphaTest(frag.triangleID, tempEdgeIt, tempZInv, tempUZ, tempVZ);
 
             if(result){
                 passFlag = true;
-                if(shadingBuffer.zInv[x][y] < tempZInv.val){
-                    shadingBuffer.triangleID[x][y] = frag.triangleID;
-                    shadingBuffer.zInv[x][y] = tempZInv.val;
-                    shadingBuffer.u_z[x][y] = tempUZ.val;
-                    shadingBuffer.v_z[x][y] = tempVZ.val;
+                if(shadingBuffer.zInv[y][x] < tempZInv.val){
+                    shadingBuffer.triangleID[y][x] = frag.triangleID;
+                    shadingBuffer.zInv[y][x] = tempZInv.val;
+                    shadingBuffer.u_z[y][x] = tempUZ.val;
+                    shadingBuffer.v_z[y][x] = tempVZ.val;
+                    shadingBuffer.materialID[y][x] = ShaderInternal::triangles[frag.triangleID].materialID;
                 }
             }else if(passFlag)break;
 
-            tempEdgeIt.yIterate();
-            tempZInv.yIterate();
-            tempUZ.yIterate();
-            tempVZ.yIterate();
+            tempEdgeIt.xIterate();
+            tempZInv.xIterate();
+            tempUZ.xIterate();
+            tempVZ.xIterate();
         }
-        edgeIt.xIterate();
-        zInv.xIterate();
-        u_z.xIterate();
-        v_z.xIterate();
+        edgeIt.yIterate();
+        zInv.yIterate();
+        u_z.yIterate();
+        v_z.yIterate();
     }
 }
 

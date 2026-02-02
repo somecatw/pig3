@@ -2,6 +2,7 @@
 #define ASSETMANAGER_H
 #include <QString>
 #include "structures.h"
+#include <map>
 
 class AssetManager
 {
@@ -14,13 +15,13 @@ public:
     bool loadOBJ(const QString& objPath);
 
     // 公共获取接口（只读，避免外部修改内部数据）
-    const std::vector<Mesh>& getMeshes() const { return m_meshes; }
-    const std::vector<Material>& getMaterials() const { return m_materials; }
+    std::vector<Mesh>& getMeshes() { return m_meshes; }
+    std::vector<Material>& getMaterials() { return m_materials; }
 
 private:
     // 辅助方法：加载MTL材质文件（解析漫反射贴图map_Kd）
     // mtlPath: MTL文件路径，baseDir: OBJ所在目录（解决贴图相对路径问题）
-    bool loadMTL(const QString& mtlPath, const QString& baseDir);
+    std::map<QString, int> loadMTL(const QString& mtlPath, const QString& baseDir);
 
     // 成员变量：存储所有加载的网格和材质
     std::vector<Mesh> m_meshes;
