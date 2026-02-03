@@ -1,6 +1,5 @@
 #include <QThreadPool>
 #include <QObject>
-#include <QEventLoop>
 #include <QDebug>
 #include "parallel_render.h"
 #include "shader_interface.h"
@@ -9,7 +8,7 @@
 using namespace std;
 
 Tile tiles[tileBufferH][tileBufferW];
-RenderTaskDispatcher taskDispatcher(4);
+RenderTaskDispatcher taskDispatcher(threadCount);
 
 using namespace ShaderInternal;
 

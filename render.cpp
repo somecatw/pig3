@@ -335,7 +335,19 @@ public:
         if(frametimes.size() > 20u)
             frametimes.erase(frametimes.begin());
 
-        qDebug()<<"total(20 frames avg)      |"<<std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
+        decltype(total) avg = std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
+        int64_t var = 0;
+        for(auto x:frametimes){
+            int64_t v = x.count();
+            var += v*v;
+        }
+        var /= frametimes.size();
+        var -= avg.count()*avg.count();
+        var = sqrt(var);
+
+        qDebug()<<"total(20 frames avg)      |"<<avg;
+        qDebug()<<"sqrt variance             |"<<var;
+
         // 土法 profiling
         qDebug()<<"---------------------------------";
         qDebug()<<"statistics:";
