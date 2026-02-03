@@ -1,11 +1,10 @@
 #include "render.h"
 #include "utils.h"
 #include <QDebug>
-#include "shaders.h"
+#include "shader_interface.h"
 using namespace std;
 
-
-// ShadingUnit shadingBuffer[640][480];
+FrameStat frameStat;
 
 namespace ShaderInternal{
     vector<Vertex> vertices;
@@ -22,6 +21,8 @@ namespace ShaderInternal{
 }
 
 using namespace ShaderInternal;
+
+ShadingBuffer shadingBuffer;
 
 
 Vertex vertexIntersect(const Vertex &a, const Vertex &b, const Plane &p){
@@ -177,9 +178,10 @@ public:
             // qDebug()<<v0.pos.to_string()<<v1.pos.to_string()<<v2.pos.to_string();
 
 
-            current.v2d[0] = v0.pos;
-            current.v2d[1] = v1.pos;
-            current.v2d[2] = v2.pos;
+            current.xlt = max(0,             int(min({v0.pos.x, v1.pos.x, v2.pos.x})));
+            current.xrb = min((int)pixelW-1, int(max({v0.pos.x, v1.pos.x, v2.pos.x})));
+            current.ylt = max(0,             int(min({v0.pos.y, v1.pos.y, v2.pos.y})));
+            current.yrb = min((int)pixelH-1, int(max({v0.pos.y, v1.pos.y, v2.pos.y})));
 
             // 算 uv
             e0.z = v1.uv.x - v0.uv.x;
@@ -190,6 +192,26 @@ public:
             e2.z = v0.uv.y - v2.uv.y;
             calcLinearCoefficient(current.v_z, {v0.pos.x, v0.pos.y, v0.uv.y}, e0, e2);
         }
+    }
+    void parallelRasterization(){
+
+        taskDispatcher.init();
+        for(const Fragment &frag:fragments){
+            int tileXlt = frag.xlt / tileSize;
+            int tileYlt = frag.ylt / tileSize;
+            int tileXrb = frag.xrb / tileSize;
+            int tileYrb = frag.yrb / tileSize;
+
+            EdgeIterator edgeIt = frag.edgeIterator, tmp;
+
+            for(int y = tileYlt; y <= tileYrb; y++){
+                for(int x = tileXlt; x <= tileXrb; x++){
+                    taskDispatcher.submitFragment(frag, x, y);
+                    frameStat.tileFragmentSum ++;
+                }
+            }
+        }
+        taskDispatcher.finish();
     }
 
     void bfRasterization(){
@@ -223,13 +245,16 @@ public:
                 if(shadingBuffer.triangleID[y][x] < 0x80000000){
                     ushort shaderConfig = triangles[shadingBuffer.triangleID[y][x]].shaderConfig;
 
+                    float u = shadingBuffer.u_z[y][x] / shadingBuffer.zInv[y][x];
+                    float v = shadingBuffer.v_z[y][x] / shadingBuffer.zInv[y][x];
+
                     // 静态转发逻辑
                     if(shaderConfig & ShaderConfig::WireframeOnly)
-                        colorRef = colorDetermination<WireframeShader>(x, y, tmpView);
+                        colorRef = colorDetermination<WireframeShader>(u, v, shadingBuffer.triangleID[y][x], tmpView);
                     else if (shaderConfig & ShaderConfig::MonoChrome)
-                        colorRef = colorDetermination<MonoChromeShader>(x, y, tmpView);
+                        colorRef = colorDetermination<MonoChromeShader>(u, v, shadingBuffer.triangleID[y][x], tmpView);
                     else
-                        colorRef = colorDetermination<BaseShader>(x, y, tmpView);
+                        colorRef = colorDetermination<BaseShader>(u, v, shadingBuffer.triangleID[y][x], tmpView);
 
                     if(!(shaderConfig & ShaderConfig::DisableLightModel)){
                         // 对于简单光照，这一步可以提前；
@@ -239,6 +264,8 @@ public:
                     }
                 }
                 tmpView += dy;
+
+                // if(x%64==0 || y%64==0) colorRef = 0xffff0000;
                 buffer[y*pixelW + x] = colorRef;
             }
             view += dx;
@@ -267,25 +294,55 @@ public:
                 shadingBuffer.triangleID[j][i] = 0x80000000u;
             }
         }
+
         auto t0 = std::chrono::system_clock::now();
         frontClip();
         auto t1 = std::chrono::system_clock::now();
-        qDebug()<<"stage1: frontclip     |"<<t1-t0;
+        qDebug()<<"stage1: frontclip         |"<<t1-t0;
         vertexProject();
         auto t2 = std::chrono::system_clock::now();
-        qDebug()<<"stage2: vertexProject |"<<t2-t1;
+        qDebug()<<"stage2: vertexProject     |"<<t2-t1;
         getFragments();
         auto t3 = std::chrono::system_clock::now();
-        qDebug()<<"stage3: getFragments  |"<<t3-t2;
-        bfRasterization();
-        auto t4 = std::chrono::system_clock::now();
-        qDebug()<<"stage4: rasterization |"<<t4-t3;
-        determineColor();
-        auto t5 = std::chrono::system_clock::now();
-        qDebug()<<"stage5: color         |"<<t5-t4;
+        qDebug()<<"stage3: getFragments      |"<<t3-t2;
+
+        decltype(t3-t2) total;
+        static vector<decltype(total)> frametimes;
+
+        frameStat.vcnt = vertices.size();
+        frameStat.tcnt = triangles.size();
+        frameStat.tileFragmentSum = 0;
+        frameStat.pixelIterated = 0;
+
+        if(1){
+            parallelRasterization();
+            auto t4 = std::chrono::system_clock::now();
+            qDebug()<<"stage4&5: parallel render |"<<t4-t3;
+            total = t4-t0;
+        }else{
+            //bfRasterization();
+            auto t4 = std::chrono::system_clock::now();
+            qDebug()<<"stage4: rasterization     |"<<t4-t3;
+            determineColor();
+            auto t5 = std::chrono::system_clock::now();
+            qDebug()<<"stage5: color             |"<<t5-t4;
+            total = t5-t0;
+        }
         qDebug()<<"---------------------------------";
-        qDebug()<<"total                 |"<<t5-t0;
+        qDebug()<<"total                     |"<<total;
+
+        frametimes.push_back(total);
+        if(frametimes.size() > 20u)
+            frametimes.erase(frametimes.begin());
+
+        qDebug()<<"total(20 frames avg)      |"<<std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
         // 土法 profiling
+        qDebug()<<"---------------------------------";
+        qDebug()<<"statistics:";
+        qDebug()<<"vertex                    |"<<frameStat.vcnt;
+        qDebug()<<"triangle                  |"<<frameStat.tcnt;
+        qDebug()<<"tiled triangle part       |"<<frameStat.tileFragmentSum;
+        qDebug()<<"iterated pixel            |"<<frameStat.pixelIterated;
     }
     friend void clearRenderBuffer();
     friend void submitMesh(const Mesh &mesh);

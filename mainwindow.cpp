@@ -48,7 +48,7 @@ void MainWindow::updateFrame(){
     CameraInfo cam;
     cam.focalLength = 4.0f;
     cam.pos = {1700, 200, 500};
-    // cam.pos = {0, 2, -12};
+    // cam.pos = {0, 2, -24};
     cam.width = 15;
     cam.height = 10;
     cam.frame.axisX = {sqrt(2.0f)/2, 0, sqrt(2.0f)/2};
@@ -58,6 +58,7 @@ void MainWindow::updateFrame(){
     // cam.frame.axisY = {0, 1, 0};
     cam.frame.axisZ = cam.frame.axisX.cross(cam.frame.axisY);
     qDebug()<<cam.frame.axisZ.to_string();
+
     cam.screenSize = {8, 5.6, 0};
     drawFrame(cam, ptr);
     label->setPixmap(QPixmap::fromImage(*img));

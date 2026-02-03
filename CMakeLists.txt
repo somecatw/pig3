@@ -30,6 +30,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         shaders.h
         transform.h transform.cpp
         gameobject.h gameobject.cpp
+        parallel_render.h
+        parallel_render.cpp
+        shader_interface.h
+
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET pig3 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

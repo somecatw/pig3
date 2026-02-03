@@ -92,7 +92,7 @@ struct EdgeIterator{
 // 2D 的片段，包含光栅化阶段需要的信息
 struct Fragment{
     uint triangleID;
-    Vec3 v2d[3];
+    int xlt, ylt, xrb, yrb;
     EdgeIterator edgeIterator;
     Iterator2D zInv, u_z, v_z;
 };
@@ -103,10 +103,6 @@ struct ShadingUnit{
     float u_z, v_z;
 };
 
-struct Tile{
-    ShadingUnit buf[tileSize][tileSize];
-};
-
 struct CameraInfo{
     Vec3 pos;
     uint width, height;
@@ -114,6 +110,15 @@ struct CameraInfo{
     float focalLength;
     LocalFrame frame;
 };
+
+struct FrameStat{
+    int vcnt;
+    int tcnt;
+    int tileFragmentSum;
+    std::atomic<uint> pixelIterated;
+};
+
+extern FrameStat frameStat;
 
 inline void loadEdgeEquation(Iterator2D &edgeIter, const Vec3 &point, const Vec3 &edge, bool direction){
     edgeIter.dv_dx = -edge.y;
