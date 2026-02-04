@@ -196,16 +196,27 @@ public:
     void parallelRasterization(){
 
         taskDispatcher.init();
+        int cnt=0;
         for(const Fragment &frag:fragments){
             int tileXlt = frag.xlt / tileSize;
             int tileYlt = frag.ylt / tileSize;
             int tileXrb = frag.xrb / tileSize;
             int tileYrb = frag.yrb / tileSize;
 
-            EdgeIterator edgeIt = frag.edgeIterator, tmp;
+            if(tileXlt < tileXrb || tileYlt < tileYrb){
+                cnt++;
+            }
+
+            // EdgeIterator edgeIt = frag.edgeIterator, tmp;
 
             for(int y = tileYlt; y <= tileYrb; y++){
                 for(int x = tileXlt; x <= tileXrb; x++){
+
+                    // int innerXlt = frag.xlt; //std::max(frag.xlt, x * tileSize);
+                    // int innerXrb = frag.xrb; //std::min(frag.xrb, x * tileSize + tileSize-1);
+                    // int innerYlt = frag.ylt; //std::max(frag.ylt, y * tileSize);
+                    // int innerYrb = frag.yrb; //std::min(frag.yrb, y * tileSize + tileSize-1);
+
                     taskDispatcher.submitFragment(frag, x, y);
                     frameStat.tileFragmentSum ++;
                 }
@@ -332,7 +343,7 @@ public:
         qDebug()<<"total                     |"<<total;
 
         frametimes.push_back(total);
-        if(frametimes.size() > 20u)
+        if(frametimes.size() > 200u)
             frametimes.erase(frametimes.begin());
 
         decltype(total) avg = std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
@@ -345,7 +356,7 @@ public:
         var -= avg.count()*avg.count();
         var = sqrt(var);
 
-        qDebug()<<"total(20 frames avg)      |"<<avg;
+        qDebug()<<"total(200 frames avg)     |"<<avg;
         qDebug()<<"sqrt variance             |"<<var;
 
         // 土法 profiling

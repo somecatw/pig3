@@ -58,10 +58,12 @@ void runTask(const RenderTask &task){
             && ptr->yrb > (tile->tileY+1)*tileSize)
             tileLevelResult = tileLevelIterate(*ptr, tile->tileX*tileSize, tile->tileY*tileSize);
 
-        if(tileLevelResult == TileLevelResult::INNER || tileLevelResult == TileLevelResult::OUTER){
-            tmp1++;
-        }else tmp2++;
-        tileRasterization<BaseShader>(*ptr, *tile, tileLevelResult);
+        uint shaderConfig = ShaderInternal::triangles[ptr->triangleID].shaderConfig;
+
+        if(shaderConfig & ShaderConfig::WireframeOnly)
+            tileRasterization<WireframeShader>(*ptr, *tile, tileLevelResult);
+        else
+            tileRasterization<BaseShader>(*ptr, *tile, tileLevelResult);
 
     }
 
@@ -72,13 +74,20 @@ void runTask(const RenderTask &task){
         for(int x=0;x<tileSize;x++){
             uint colorRef = 0xff000000;
             if(tile->triangleID[y][x] < 0x80000000u){
-                float u = tile->u_z[y][x] / tile->zInv[y][x];
-                float v = tile->v_z[y][x] / tile->zInv[y][x];
-                colorRef = colorDetermination<BaseShader>(u, v, task.tile->triangleID[y][x], {1,0,0});
+                float z = 1.0 / tile->zInv[y][x];
+                float u = tile->u_z[y][x] * z;
+                float v = tile->v_z[y][x] * z;
+
+                uint shaderConfig = ShaderInternal::triangles[tile->triangleID[y][x]].shaderConfig;
+                if(shaderConfig & ShaderConfig::WireframeOnly)
+                    colorRef = colorDetermination<WireframeShader>(u, v, task.tile->triangleID[y][x], {1,0,0});
+                else
+                    colorRef = colorDetermination<BaseShader>(u, v, task.tile->triangleID[y][x], {1,0,0});
             }
             int globalX = tileXlt+x;
             int globalY = tileYlt+y;
 
+            if(globalX%64==0 || globalY%64==0) colorRef = 0xffff0000;
             ShaderInternal::buffer[globalY * ShaderInternal::pixelW + globalX] = colorRef;
         }
 }
@@ -94,12 +103,34 @@ RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
             while (true) {
                 ctrl->state.wait(0, std::memory_order_acquire);
                 if (ctrl->state.load(std::memory_order_relaxed) == 2) break;
+                ctrl->head = 0;
+                ctrl->tail = ctrl->bucket.size()-1;
 
-                for (const auto& task : ctrl->bucket) {
-                    runTask(task);
+                // head: 第一个没做的任务
+                // tail: 最后一个没被抢的任务
+                // 现在逻辑还有点小问题，可能有一个 task 被做了两次，概率非常低
+                while(ctrl->head <= ctrl->tail) {
+                    int h = ctrl->head;
+                    ctrl->head ++;
+                    runTask(ctrl->bucket[h]);
+                    taskFinishedCount ++;
                 }
                 ctrl->state.store(0, std::memory_order_release);
                 finishedCount.fetch_add(1, std::memory_order_release);
+                while(true){
+                    if(this->finishedCount.load() == this->threadCount) break;
+                    for(int id=0;id<this->threadCount;id++){
+                        int chead = controls[id]->head;
+                        int ctail = controls[id]->tail;
+                        if(chead > ctail)continue;
+                        int tmp = ctail - 1;
+                        if(controls[id]->tail.compare_exchange_strong(ctail, tmp)){
+                            if(controls[id]->head > ctail) continue;
+                            runTask(controls[id]->bucket[ctail]);
+                            taskFinishedCount ++;
+                        }
+                    }
+                }
             }
         });
 
@@ -117,8 +148,11 @@ RenderTaskDispatcher::~RenderTaskDispatcher(){
 void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
 
     finishedCount.store(0, std::memory_order_relaxed);
+    int taskCount = 0;
+    taskFinishedCount = 0;
 
     for (int i = 0; i < threadCount; ++i) {
+        taskCount += buckets[i].size();
         controls[i]->bucket = std::move(buckets[i]);
         controls[i]->state.store(1, std::memory_order_release);
         controls[i]->state.notify_one();
@@ -127,14 +161,27 @@ void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
     // 又有原子又有自旋，我看这是量子物理 ---somecat
 
     // 主线程自旋等待完成：4ms 级别不建议挂起，直接自旋
-    while (finishedCount.load(std::memory_order_acquire) < threadCount) {
+    auto t0 = chrono::system_clock::now();
+    int curr = 0, tmp;
+    while (1) {
         // 这里可以加一行针对特定平台的 pause 指令来稍微优化功耗
+        tmp = finishedCount.load(std::memory_order_acquire);
+        if(tmp > curr){
+            curr = tmp;
+            auto t = chrono::system_clock::now();
+            qDebug()<<t-t0;
+        }
+        if(taskFinishedCount >= taskCount) break;
+        auto t = chrono::system_clock::now();
+        if(t-t0 > chrono::seconds(1)){
+            qDebug()<<taskFinishedCount;
+        }
     }
+
+    // qDebug()<<t-t0;
 
 }
 void RenderTaskDispatcher::init(){
-    finishFlag = false;
-    taskCount = 0;
     tileH = camera.height;
     tileW = camera.width;
 
@@ -155,14 +202,22 @@ void RenderTaskDispatcher::submitFragment(const Fragment &frag, int tileX, int t
 }
 
 void RenderTaskDispatcher::finish(){
-    finishFlag = true;
+
     vector<pair<int, RenderTask>> dogTasks;
 
     for(int y=0;y<tileH;y++){
         for(int x=0;x<tileW;x++){
             RenderTask &task = taskBuffer[y][x];
-            dogTasks.push_back({task.workLoad(), std::move(task)});
-            task.fragments.clear();
+            int load = 0;
+            for(const Fragment *ptr:task.fragments){
+                int xlt = max(ptr->xlt, x*tileSize);
+                int xrb = min(ptr->xrb, x*tileSize+tileSize);
+                int ylt = max(ptr->ylt, y*tileSize);
+                int yrb = min(ptr->yrb, y*tileSize+tileSize);
+                load += (yrb-ylt)*(xrb-xlt);
+            }
+            dogTasks.push_back({load, std::move(task)});
+            // task.fragments.clear();
         }
     }
 
@@ -170,8 +225,10 @@ void RenderTaskDispatcher::finish(){
 
     // 排个序随便分一下
     sort(dogTasks.begin(), dogTasks.end(), [](const pair<int, RenderTask> &a, const pair<int, RenderTask> &b){return a.first > b.first;});
-    for(auto [id, pair]:enumerate(dogTasks))
+    int loads[4] = {0};
+    for(auto [id, pair]:enumerate(dogTasks)){
         threadTasks[id%threadCount].push_back(std::move(pair.second));
+    }
 
     runBatch(std::move(threadTasks));
     tmp1=tmp2=0;

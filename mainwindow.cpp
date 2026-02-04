@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
     for(Mesh &m:assetManager.getMeshes()){
         m.applyTransform(rot);
-        m.shaderConfig |= ShaderConfig::DisableLightModel;
+        m.shaderConfig |= ShaderConfig::DisableLightModel; // | ShaderConfig::WireframeOnly;
     }
     // exit(0);
     // ttfa = assetManager.getMeshes()[1];

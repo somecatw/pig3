@@ -18,6 +18,11 @@ struct Tile{
     float zInvMin;
 };
 
+struct TiledFragment{
+    int xlt, ylt, xrb, yrb;
+    const Fragment *fragment;
+};
+
 struct RenderTask{
     Tile *tile;
     std::vector<const Fragment*> fragments;
@@ -30,18 +35,13 @@ struct RenderTask{
         swap(fragments, other.fragments);
     }
     RenderTask &operator=(const RenderTask&) = default;
-
-    uint workLoad()const{
-        return std::accumulate(fragments.begin(), fragments.end(), 0, [](uint val, const Fragment *ptr){
-            return val + (ptr->xrb - ptr->xlt) * (ptr->yrb - ptr->ylt);
-        });
-    }
 };
 
 
 struct WorkerControl {
     std::atomic<int> state{0}; // 0: 等待, 1: 执行, 2: 退出
     std::vector<RenderTask> bucket;
+    std::atomic<int> head, tail;
 };
 
 class RenderTaskDispatcher{
@@ -54,9 +54,6 @@ public:
 private:
     void runBatch(std::vector<std::vector<RenderTask>> &&buckets);
 
-    int taskCount;
-    bool finishFlag;
-
     RenderTask taskBuffer[tileBufferH][tileBufferW];
     int tileH, tileW;
     uint *globalColorBuffer;
@@ -65,6 +62,9 @@ private:
     std::vector<std::thread> workers;
     std::vector<WorkerControl*> controls;
     std::atomic<int> finishedCount;
+    std::atomic<int> taskFinishedCount;
+
+    std::atomic<int> stolen;
 
 };
 extern RenderTaskDispatcher taskDispatcher;

@@ -58,6 +58,9 @@ struct Iterator2D{
     void xIterate(){
         val += dv_dx;
     }
+    void xInversedIterate(){
+        val -= dv_dx;
+    }
     void yIterate(){
         val += dv_dy;
     }
@@ -77,6 +80,11 @@ struct EdgeIterator{
         e[0].xIterate();
         e[1].xIterate();
         e[2].xIterate();
+    }
+    void xInversedIterate(){
+        e[0].xInversedIterate();
+        e[1].xInversedIterate();
+        e[2].xInversedIterate();
     }
     void yIterate(){
         e[0].yIterate();
