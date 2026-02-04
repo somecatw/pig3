@@ -102,15 +102,27 @@ public:
                 uint id1 = vertices.size();
                 vertices.push_back(int1);
 
+                Vec3 oldNorm = (vertices[triangle.vid[2]].pos - vertices[triangle.vid[0]].pos).cross(vertices[triangle.vid[1]].pos - vertices[triangle.vid[0]].pos);
+
                 triangle.vid[0] = front[0].first;
                 triangle.vid[1] = id0;
                 triangle.vid[2] = front[1].first;
+
+                Vec3 newNorm2 = (front[1].second.pos - int0.pos).cross(int1.pos - int0.pos);
+                Vec3 newNorm1 = (front[1].second.pos - front[0].second.pos).cross(int0.pos - front[0].second.pos);
 
                 Triangle tmp;
                 tmp.vid[0] = id0;
                 tmp.vid[1] = id1;
                 tmp.vid[2] = front[1].first;
+
+                if(newNorm2.dot(oldNorm) < 0) swap(tmp.vid[1], tmp.vid[2]);
+                if(newNorm2.dot(oldNorm) < 0) swap(triangle.vid[1], triangle.vid[2]);
+
+                tmp.materialID = triangle.materialID;
+                tmp.shaderConfig = triangle.shaderConfig;
                 tmpTriangles.push_back(tmp);
+                // if(int0.pos.y > 280)qDebug()<<back[0].second.pos.y;
                 continue;
             }
             if(front.size() == 1u && back.size() == 2u){
@@ -122,9 +134,14 @@ public:
                 uint id1 = vertices.size();
                 vertices.push_back(int1);
 
+                Vec3 oldNorm = (vertices[triangle.vid[2]].pos - vertices[triangle.vid[0]].pos).cross(vertices[triangle.vid[1]].pos - vertices[triangle.vid[0]].pos);
+                Vec3 newNorm = (int1.pos - front[0].second.pos).cross(int0.pos - front[0].second.pos);
+
                 triangle.vid[0] = front[0].first;
                 triangle.vid[1] = id0;
                 triangle.vid[2] = id1;
+
+                if(newNorm.dot(oldNorm) < 0) swap(triangle.vid[0], triangle.vid[1]);
 
                 continue;
             }
@@ -146,7 +163,7 @@ public:
 
             if(!(triangle.shaderConfig & ShaderConfig::DisableBackCulling)){
 
-                if(triangle.hardNormal.dot(vertices[triangle.vid[2]].pos - camera.pos) < 0) continue;
+                if(triangle.hardNormal.dot(vertices[triangle.vid[0]].pos - camera.pos) < 0) continue;
             }
 
             fragments.push_back(Fragment());
@@ -331,7 +348,7 @@ public:
             qDebug()<<"stage4&5: parallel render |"<<t4-t3;
             total = t4-t0;
         }else{
-            //bfRasterization();
+            bfRasterization();
             auto t4 = std::chrono::system_clock::now();
             qDebug()<<"stage4: rasterization     |"<<t4-t3;
             determineColor();

@@ -35,6 +35,16 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         shader_interface.h
 
     )
+
+set(FAST_FP_FILES "parallel_render.cpp")
+
+if(MSVC)
+    set_source_files_properties(${FAST_FP_FILES} PROPERTIES COMPILE_FLAGS "/fp:fast")
+else()
+    # 针对 GCC 和 Clang
+    set_source_files_properties(${FAST_FP_FILES} PROPERTIES COMPILE_FLAGS "-ffast-math")
+endif()
+
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET pig3 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)

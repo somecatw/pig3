@@ -19,6 +19,8 @@ struct ShaderConfig{
 
 struct Material{
     QImage img;
+    std::vector<QImage> mipmaps;
+    void setImage(const QImage &_img);
 };
 
 struct Vertex{

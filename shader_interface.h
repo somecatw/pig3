@@ -69,6 +69,62 @@ struct TileLevelResult{
         INNER   = 2;
 };
 
+std::tuple<bool, float, float> inline xTest(Vec3 p0, Vec3 p1, float x){
+    if(p0.x > p1.x) std::swap(p0, p1);
+    if(abs(p0.x-p1.x) < 1e-5) return {false, 0, 0};
+    if(p0.x > x || p1.x < x) return {false, 0, 0};
+    float k = (x-p0.x) / (p1.x-p0.x);
+    return {true, x, p0.y + k *(p1.y-p0.y)};
+}
+std::tuple<bool, float, float> inline yTest(Vec3 p0, Vec3 p1, float y){
+    if(p0.y > p1.y) std::swap(p0, p1);
+    if(abs(p0.y-p1.y) < 1e-5) return {false, 0, 0};
+    if(p0.y > y || p1.y < y) return {false, 0, 0};
+    float k = (y-p0.y) / (p1.y-p0.y);
+    return {true, p0.x + k *(p1.x-p0.x), y};
+}
+
+std::tuple<bool, int, int, int, int> inline getTiledBBox(const Fragment &frag, int xmin, int xmax, int ymin, int ymax){
+    Vec3 p0 = ShaderInternal::projectedVertices[ShaderInternal::triangles[frag.triangleID].vid[0]].pos;
+    Vec3 p1 = ShaderInternal::projectedVertices[ShaderInternal::triangles[frag.triangleID].vid[1]].pos;
+    Vec3 p2 = ShaderInternal::projectedVertices[ShaderInternal::triangles[frag.triangleID].vid[2]].pos;
+    p0.z = 0;
+    p1.z = 0;
+    p2.z = 0;
+
+    thread_local static std::vector<std::tuple<bool, float, float>> intersections;
+    intersections.clear();
+
+    for(const auto [v0, v1]: std::vector<std::pair<Vec3, Vec3>>({{p0, p1}, {p1, p2}, {p2, p0}})){
+        intersections.push_back(xTest(v0, v1, xmin));
+        intersections.push_back(xTest(v0, v1, xmax));
+        intersections.push_back(yTest(v0, v1, ymin));
+        intersections.push_back(yTest(v0, v1, ymax));
+    }
+
+    for(const Vec3 &v:{p0, p1, p2})
+        if(v.x >= xmin && v.x <= xmax && v.y >= ymin && v.y <= ymax)
+            intersections.push_back({true, v.x, v.y});
+
+
+    float xlt = 1e9, ylt = 1e9, xrb = 0, yrb = 0;
+    int cnt = 0;
+    for(const auto &[flag, x, y]: intersections){
+        if(!flag) continue;
+        xlt = std::min(xlt, x);
+        ylt = std::min(ylt, y);
+        xrb = std::max(xrb, x);
+        yrb = std::max(yrb, y);
+        cnt ++;
+    }
+    xlt = std::max(xlt, (float)xmin);
+    ylt = std::max(ylt, (float)ymin);
+    xrb = std::min(xrb, (float)xmax);
+    yrb = std::min(yrb, (float)ymax);
+
+    return {cnt>0, xlt, ylt, ceil(xrb), ceil(yrb)};
+
+}
 template<typename FragmentShader>
     requires IsShader<FragmentShader> void tileRasterization(const Fragment &frag, Tile &tile, int tileLevelResult){
 
@@ -79,10 +135,25 @@ template<typename FragmentShader>
     Iterator2D u_z = frag.u_z;
     Iterator2D v_z = frag.v_z;
 
-    int xlt = std::max(frag.xlt, tile.tileX * tileSize);
-    int xrb = std::min(frag.xrb, tile.tileX * tileSize + tileSize-1);
-    int ylt = std::max(frag.ylt, tile.tileY * tileSize);
-    int yrb = std::min(frag.yrb, tile.tileY * tileSize + tileSize-1);
+    int tileXmin = tile.tileX * tileSize;
+    int tileXmax = tile.tileX * tileSize + tileSize-1;
+    int tileYmin = tile.tileY * tileSize;
+    int tileYmax = tile.tileY * tileSize + tileSize-1;
+
+    int xlt = std::max(frag.xlt, tileXmin);
+    int xrb = std::min(frag.xrb, tileXmax);
+    int ylt = std::max(frag.ylt, tileYmin);
+    int yrb = std::min(frag.yrb, tileYmax);
+
+    if((frag.xrb-frag.xlt+1)*(frag.yrb-frag.ylt+1) > 4096){
+        auto [flag, precXlt, precYlt, precXrb, precYrb] = getTiledBBox(frag, tileXmin, tileXmax, tileYmin, tileYmax);
+        if(flag){
+            xlt = std::max(xlt, precXlt);
+            ylt = std::max(ylt, precYlt);
+            xrb = std::min(xrb, precXrb);
+            yrb = std::min(yrb, precYrb);
+        }
+    }
 
     frameStat.pixelIterated += (xrb-xlt+1)*(yrb-ylt+1);
 
@@ -134,99 +205,6 @@ template<typename FragmentShader>
     }
 }
 
-template<typename FragmentShader>
-    requires IsShader<FragmentShader> void tileRasterization2(const Fragment &frag, Tile &tile, int tileLevelResult){
-
-    if(tileLevelResult == TileLevelResult::OUTER) return;
-
-    EdgeIterator edgeIt = frag.edgeIterator;
-    Iterator2D zInv = frag.zInv;
-    Iterator2D u_z = frag.u_z;
-    Iterator2D v_z = frag.v_z;
-
-    int xlt = std::max(frag.xlt, tile.tileX * tileSize);
-    int xrb = std::min(frag.xrb, tile.tileX * tileSize + tileSize-1);
-    int ylt = std::max(frag.ylt, tile.tileY * tileSize);
-    int yrb = std::min(frag.yrb, tile.tileY * tileSize + tileSize-1);
-
-    frameStat.pixelIterated += (xrb-xlt+1)*(yrb-ylt+1);
-
-    edgeIt.batchIterate(xlt, ylt);
-    zInv.batchIterate(xlt, ylt);
-    u_z.batchIterate(xlt, ylt);
-    v_z.batchIterate(xlt, ylt);
-
-    xlt -= tile.tileX * tileSize;
-    xrb -= tile.tileX * tileSize;
-    ylt -= tile.tileY * tileSize;
-    yrb -= tile.tileY * tileSize;
-
-    for(int y = ylt; y <= yrb; y++){
-        bool passFlag = false;
-        for(int x = xlt; x <= xrb; x++){
-
-            if(tile.zInv[y][x] < zInv.val){
-                bool result = FragmentShader::alphaTest(frag.triangleID, edgeIt, zInv, u_z, v_z);
-                if(result){
-                    passFlag = true;
-                    // tile.zInvMin = min(tile.zInvMin, tempZInv.val);
-                    tile.triangleID[y][x] = frag.triangleID;
-                    tile.zInv[y][x] = zInv.val;
-                    tile.u_z[y][x] = u_z.val;
-                    tile.v_z[y][x] = v_z.val;
-                    tile.materialID[y][x] = ShaderInternal::triangles[frag.triangleID].materialID;
-                }// else if(passFlag)break;
-            }
-
-            if(x == xrb)break;
-
-            if(tileLevelResult == TileLevelResult::UNKNOWN)
-                edgeIt.xIterate();
-            zInv.xIterate();
-            u_z.xIterate();
-            v_z.xIterate();
-        }
-        if(tileLevelResult == TileLevelResult::UNKNOWN)
-            edgeIt.yIterate();
-        zInv.yIterate();
-        u_z.yIterate();
-        v_z.yIterate();
-
-        y++;
-        if(y > yrb) break;
-        passFlag = false;
-
-        for(int x = xrb; x >= xlt; x--){
-
-            if(tile.zInv[y][x] < zInv.val){
-                bool result = FragmentShader::alphaTest(frag.triangleID, edgeIt, zInv, u_z, v_z);
-                if(result){
-                    passFlag = true;
-                    // tile.zInvMin = min(tile.zInvMin, tempZInv.val);
-                    tile.triangleID[y][x] = frag.triangleID;
-                    tile.zInv[y][x] = zInv.val;
-                    tile.u_z[y][x] = u_z.val;
-                    tile.v_z[y][x] = v_z.val;
-                    tile.materialID[y][x] = ShaderInternal::triangles[frag.triangleID].materialID;
-                }// else if(passFlag)break;
-            }
-
-            if(x == xlt) break;
-
-            if(tileLevelResult == TileLevelResult::UNKNOWN)
-                edgeIt.xInversedIterate();
-            zInv.xInversedIterate();
-            u_z.xInversedIterate();
-            v_z.xInversedIterate();
-        }
-        if(tileLevelResult == TileLevelResult::UNKNOWN)
-            edgeIt.yIterate();
-        zInv.yIterate();
-        u_z.yIterate();
-        v_z.yIterate();
-
-    }
-}
 
 template<typename FragmentShader>
     requires IsShader<FragmentShader> uint colorDetermination(float u, float v, uint triangleID, const Vec3 &view){

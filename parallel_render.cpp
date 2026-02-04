@@ -39,16 +39,18 @@ int tileLevelIterate(const Fragment &frag, int tileXlt, int tileYlt){
     return TileLevelResult::UNKNOWN;
 }
 
-std::atomic<int> tmp1 = 0, tmp2=0;;
+std::atomic<int> tmp1 = 0, tmp2=0, tmp3=0;
 
 void runTask(const RenderTask &task){
     Tile *tile = task.tile;
     tile->zInvMin = 0.0f;
+
     for(int y=0;y<tileSize;y++)
         for(int x=0;x<tileSize;x++){
             tile->triangleID[y][x] = 0x80000000;
             tile->zInv[y][x] = 0;
         }
+
     for(const Fragment *ptr:task.fragments){
         int tileLevelResult = TileLevelResult::UNKNOWN;
 
@@ -87,7 +89,7 @@ void runTask(const RenderTask &task){
             int globalX = tileXlt+x;
             int globalY = tileYlt+y;
 
-            if(globalX%64==0 || globalY%64==0) colorRef = 0xffff0000;
+            // if(globalX%64==0 || globalY%64==0) colorRef = 0xffff0000;
             ShaderInternal::buffer[globalY * ShaderInternal::pixelW + globalX] = colorRef;
         }
 }
@@ -165,17 +167,13 @@ void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
     int curr = 0, tmp;
     while (1) {
         // 这里可以加一行针对特定平台的 pause 指令来稍微优化功耗
-        tmp = finishedCount.load(std::memory_order_acquire);
-        if(tmp > curr){
-            curr = tmp;
-            auto t = chrono::system_clock::now();
-            qDebug()<<t-t0;
-        }
+        // tmp = finishedCount.load(std::memory_order_acquire);
+        // if(tmp > curr){
+        //     curr = tmp;
+        //     auto t = chrono::system_clock::now();
+        //     qDebug()<<t-t0;
+        // }
         if(taskFinishedCount >= taskCount) break;
-        auto t = chrono::system_clock::now();
-        if(t-t0 > chrono::seconds(1)){
-            qDebug()<<taskFinishedCount;
-        }
     }
 
     // qDebug()<<t-t0;
@@ -191,7 +189,6 @@ void RenderTaskDispatcher::init(){
             tiles[i][j].tileY = i;
             taskBuffer[i][j].tile = &tiles[i][j];
             taskBuffer[i][j].fragments.clear();
-
         }
     }
 }
@@ -201,36 +198,36 @@ void RenderTaskDispatcher::submitFragment(const Fragment &frag, int tileX, int t
     task.fragments.push_back(&frag);
 }
 
+
+
 void RenderTaskDispatcher::finish(){
 
-    vector<pair<int, RenderTask>> dogTasks;
+    static vector<RenderTask> dogTasks;
+    dogTasks.clear();
 
+    tmp1=0;
     for(int y=0;y<tileH;y++){
         for(int x=0;x<tileW;x++){
             RenderTask &task = taskBuffer[y][x];
-            int load = 0;
-            for(const Fragment *ptr:task.fragments){
-                int xlt = max(ptr->xlt, x*tileSize);
-                int xrb = min(ptr->xrb, x*tileSize+tileSize);
-                int ylt = max(ptr->ylt, y*tileSize);
-                int yrb = min(ptr->yrb, y*tileSize+tileSize);
-                load += (yrb-ylt)*(xrb-xlt);
-            }
-            dogTasks.push_back({load, std::move(task)});
+            dogTasks.push_back(std::move(task));
             // task.fragments.clear();
         }
     }
 
-    vector<vector<RenderTask>> threadTasks(threadCount);
+    static vector<vector<RenderTask>> threadTasks(threadCount);
+    for(int i=0;i<threadCount;i++)
+        threadTasks[i].clear();
 
     // 排个序随便分一下
-    sort(dogTasks.begin(), dogTasks.end(), [](const pair<int, RenderTask> &a, const pair<int, RenderTask> &b){return a.first > b.first;});
-    int loads[4] = {0};
-    for(auto [id, pair]:enumerate(dogTasks)){
-        threadTasks[id%threadCount].push_back(std::move(pair.second));
+    // sort(dogTasks.begin(), dogTasks.end(), [](const pair<int, RenderTask> &a, const pair<int, RenderTask> &b){return a.first > b.first;});
+
+    int ttfa = (dogTasks.size()-1) / threadCount+1;
+    for(auto [id, task]:enumerate(dogTasks)){
+        threadTasks[id%threadCount].push_back(std::move(task));
+        // loads[id%threadCount] += pair.first;
     }
 
     runBatch(std::move(threadTasks));
-    tmp1=tmp2=0;
+    tmp1=tmp2=tmp3=0;
 }
 

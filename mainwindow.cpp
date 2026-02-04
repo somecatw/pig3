@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
     for(Mesh &m:assetManager.getMeshes()){
         m.applyTransform(rot);
-        m.shaderConfig |= ShaderConfig::DisableLightModel; // | ShaderConfig::WireframeOnly;
+        m.shaderConfig |= ShaderConfig::DisableLightModel;
     }
     // exit(0);
     // ttfa = assetManager.getMeshes()[1];
@@ -34,24 +34,26 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::updateFrame(){
     uint *ptr=(uint*)img->bits();
-
+    t+=2;
     // ttfa.applyTransform(Transform::rotateAroundAxis({0,1,0}, 0.015));
     // ttfa.shaderConfig = ShaderConfig::DisableBackCulling | ShaderConfig::WireframeOnly;
 
     clearRenderBuffer();
     // submitMesh(ttfa);
     for(Mesh &m:assetManager.getMeshes()){
-        // m.applyTransform(Transform::translate({0, 5, 0}));
+        // m.applyTransform(Transform::translate({0, 5, 0}));S
         submitMesh(m);
     }
 
     CameraInfo cam;
     cam.focalLength = 4.0f;
-    cam.pos = {1700, 200, 500};
+    float yy = 280 + 150 * min(max(0.0f, t-450.0f)/450, 1.0f);
+    cam.pos = {float(1650-t), yy, 2100};
     // cam.pos = {0, 2, -24};
     cam.width = 15;
     cam.height = 10;
-    cam.frame.axisX = {sqrt(2.0f)/2, 0, sqrt(2.0f)/2};
+    // cam.frame.axisX = {sqrt(2.0f)/2, 0, sqrt(2.0f)/2};
+    cam.frame.axisX = {0.5, 0, sqrt(3.0f)/2};
     // cam.frame.axisX = {1, 0, 0};
     cam.frame.axisY = {0, 1, 0};
     // cam.frame.axisX = {0.98, 0, sqrt(0.0396f)};
