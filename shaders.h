@@ -3,6 +3,7 @@
 
 #include "structures.h"
 #include "assetmanager.h"
+#include <QDebug>
 
 namespace ShaderInternal{
     extern std::vector<Vertex> vertices;
@@ -24,14 +25,66 @@ struct ShadingBuffer{
 };
 extern ShadingBuffer shadingBuffer;
 
+struct IntColorRef{
+    int r, g, b;
+    IntColorRef(uint color){
+        r = (color&(0xff0000))>>10;
+        g = (color&(0x00ff00))>>2;
+        b = (color&(0x0000ff))<<6;
+    }
+    // k 从 0 到 32768
+    void blend(const IntColorRef &other, int k){
+        r = r + ((k*(other.r-r)) >> 14);
+        g = g + ((k*(other.g-g)) >> 14);
+        b = b + ((k*(other.b-b)) >> 14);
+    }
+    uint toUintColor(){
+        return 0xff000000 | (0xff0000 & (r<<10)) | (0x00ff00 & (g<<2)) | (0x0000ff & (b>>6));
+    }
+};
+
+// 这是人写得出来的东西？
+uint inline uintBlend(uint c1, uint c2, int alpha){
+    uint32_t rb1 = c1 & 0xFF00FF;
+    uint32_t g1  = c1 & 0x00FF00;
+
+    uint32_t rb2 = c2 & 0xFF00FF;
+    uint32_t g2  = c2 & 0x00FF00;
+
+    // (c1 + (c2 - c1) * alpha) >> 8
+    uint32_t rb = rb1 + (((rb2 - rb1) * alpha) >> 8);
+    uint32_t g  = g1 + (((g2 - g1) * alpha) >> 8);
+
+    return (rb & 0xFF00FF) | (g & 0x00FF00);
+}
+uint inline BilinearSample(float u, float v, int l, const Material &mtl){
+    const QImage *texture = &mtl.mipmaps.at(l);
+
+    int w = texture->width();
+    int h = texture->height();
+
+    float ru = u*w;
+    float rv = v*h;
+
+    int x0 = int(ru)%w;
+    int y0 = int(rv)%h;
+    if(x0<0) x0 += w;
+    if(y0<0) y0 += h;
+
+    uint *ptr0 = (uint*)texture->constScanLine(y0);
+    uint c00 = ptr0[x0] & 0xffffff;
+    return c00;
+}
 class BaseShader{
 public:
+    static inline int lg2[256];
+    static inline float lg2f[65536];
     // 在光栅化阶段，判断当前像素是否需要显示
     bool static alphaTest(uint triangleID, const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
         return edgeIt.check() == EdgeIterator::INNER;
     }
     // 在着色阶段，算出当前像素的颜色。输入的 x 和 y 是屏幕像素坐标；此函数只在 alphaTest 返回 true 的像素上执行
-    uint static colorSample(float u, float v, uint triangleID, Vec3 view){
+    uint static colorSample(float u, float v, uint triangleID, const Vec3 &view, float d=0.0f){
         uint materialID = ShaderInternal::triangles[triangleID].materialID;
 
         // uint materialID = shadingBuffer.materialID[y][x];
@@ -41,16 +94,52 @@ public:
         int w = material.img.width();
         int h = material.img.height();
 
-        // float u = shadingBuffer.u_z[y][x] / shadingBuffer.zInv[y][x];
-        // float v = shadingBuffer.v_z[y][x] / shadingBuffer.zInv[y][x];
+        float pxSpan = std::min(255.0f, std::max(0.999f, d * std::max(w, h)));
+        int level = lg2[int(pxSpan)];
+        // level = 0;
 
-        int rx = int(u*w)%w;
-        int ry = int(v*h)%h;
+        const QImage *texture = &material.mipmaps.at(std::max(0, level-1));
 
-        if(rx<0) rx += w;
-        if(ry<0) ry += h;
+        w = texture->width();
+        h = texture->height();
 
-        return material.img.pixel(rx, ry);
+        float ru = u*w;
+        float rv = v*h;
+
+        int x0 = int(ru)%w;
+        int y0 = int(rv)%h;
+        if(x0<0) x0 += w;
+        if(y0<0) y0 += h;
+
+        uint *ptr0 = (uint*)texture->constScanLine(y0);
+        uint c00 = ptr0[x0] & 0xffffff;
+
+
+        if(level > 1){
+            float lgSpan = lg2f[int(pxSpan * 16.0f)];
+            if(level - lgSpan > 0.2f && level > 0 ){
+                uint c100 = BilinearSample(u, v, level-2, material);
+                // int k = 256 * (level+1-std::min(8.0f, lgSpan));
+                int k = 256 * (level - std::min(8.0f, lgSpan));
+                c00 = uintBlend(c00, c100, k);
+            }
+        }
+
+        // if(level > 4) c00 = 0xff000000;
+        // if(level <= 4){
+        //     int gray = 0xff & int((level-lgSpan) * 64);
+        //     return 0xff000000 | (gray<<16) | (gray<<8) | gray;
+
+        // }
+
+        // c01.blend(c00, kx);
+        // c11.blend(c10, kx);
+        // c11.blend(c01, ky);
+
+
+        // return 0xff000000 | (int(kk)<<16) | (int(kk)<<8) | 0;
+        return 0xff000000 | c00;
+
     }
 };
 
@@ -67,7 +156,7 @@ public:
         if(ttfa == 4 || ttfa == 5) return true;
         else return false;
     }
-    uint static colorSample(float u, float v, uint triangleID, const Vec3 &view){
+    uint static colorSample(float u, float v, uint triangleID, const Vec3 &view, float d=0.0f){
         unsigned int h = triangleID;
 
         // 简单的位混合哈希，让相邻 ID 的颜色产生剧烈跳变
@@ -91,7 +180,7 @@ public:
     bool static alphaTest(uint triangleID, const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
         return edgeIt.check() == EdgeIterator::INNER;
     }
-    uint static colorSample(float u, float v, uint triangleID, const Vec3 &view) {
+    uint static colorSample(float u, float v, uint triangleID, const Vec3 &view, float d=0.0f) {
         uint materialID = ShaderInternal::triangles[triangleID].materialID;
 
         const Material &material = assetManager.getMaterials()[materialID];

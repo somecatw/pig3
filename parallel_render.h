@@ -12,10 +12,10 @@ struct Tile{
     int tileX, tileY;
     int xlt, ylt;
     uint triangleID[tileSize][tileSize];
-    uint materialID[tileSize][tileSize];
     uint color[tileSize][tileSize];
     float zInv[tileSize][tileSize], u_z[tileSize][tileSize], v_z[tileSize][tileSize];
     float zInvMin;
+    float derivative[tileSize][tileSize];
 };
 
 struct TiledFragment{

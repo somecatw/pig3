@@ -61,7 +61,8 @@ std::map<QString, int> AssetManager::loadMTL(const QString& mtlPath, const QStri
         else if (parts[0] == "map_Kd" && hasMat) {
             QString texRelPath = QString::fromStdString(parts[1]);
             QString texAbsPath = QDir(baseDir).absoluteFilePath(texRelPath);
-            currentMat.img = QImage(texAbsPath);
+            currentMat.setImage(QImage(texAbsPath));
+            // currentMat.img = QImage(texAbsPath);
             if (currentMat.img.isNull()) {
                 qWarning() << "  [!] Failed to load texture:" << texAbsPath;
             } else {
@@ -190,4 +191,18 @@ bool AssetManager::loadOBJ(const QString& objPath)
     objFile.close();
     qInfo() << "[OBJ] Load finished. Total SubMeshes:" << m_meshes.size();
     return !m_meshes.empty();
+}
+
+void Material::setImage(const QImage &_img){
+    img = _img.convertToFormat(QImage::Format_ARGB32);
+    // assert(img.width()%16==0 && img.height()%16==0);
+    mipmaps.clear();
+    int w = img.width();
+    int h = img.height();
+    for(int mipLevel = 0; mipLevel <= 8; mipLevel ++){
+        int currW = (w-1) / (1<<mipLevel) + 1;
+        int currH = (h-1) / (1<<mipLevel) + 1;
+
+        mipmaps.push_back(img.scaled(currW, currH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    }
 }

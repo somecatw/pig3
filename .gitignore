@@ -2,3 +2,4 @@ build/
 assets/dust2
 assets/dust3
 ./CMakeLists.txt.user
+release/

@@ -156,6 +156,7 @@ public:
     }
     void getFragments(){
         fragments.reserve(triangles.size());
+
         for(auto [id, triangle]: enumerate(triangles)){
 
             triangle.hardNormal = (vertices[triangle.vid[2]].pos - vertices[triangle.vid[0]].pos).cross(vertices[triangle.vid[1]].pos-vertices[triangle.vid[0]].pos);
@@ -208,6 +209,7 @@ public:
             e0.z = v1.uv.y - v0.uv.y;
             e2.z = v0.uv.y - v2.uv.y;
             calcLinearCoefficient(current.v_z, {v0.pos.x, v0.pos.y, v0.uv.y}, e0, e2);
+
         }
     }
     void parallelRasterization(){
@@ -307,6 +309,15 @@ public:
         projectedVertices.clear();
         fragments.clear();
 
+        if(!BaseShader::lg2[255]){
+            for(int i=1;i<256;i++){
+                BaseShader::lg2[i] = int(ceil(log2(i+1)));
+            }
+            for(int i=1;i<4096;i++){
+                BaseShader::lg2f[i] = log2(i/16.0f);
+            }
+        }
+
         pixelW = camera.width * tileSize;
         pixelH = camera.height * tileSize;
 
@@ -365,6 +376,8 @@ public:
 
         decltype(total) avg = std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
         int64_t var = 0;
+
+        frameStat.fps = 1e7 / avg.count();
         for(auto x:frametimes){
             int64_t v = x.count();
             var += v*v;

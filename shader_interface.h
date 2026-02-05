@@ -6,8 +6,8 @@
 
 template<typename T> concept IsShader = requires(const EdgeIterator &edgeIt, const Iterator2D &zInv, const Iterator2D &u_z, const Iterator2D &v_z){
     {T::alphaTest(uint(), edgeIt, zInv, u_z, v_z)} -> std::same_as<bool>;
-} && requires(float u, float v, uint triangleID, Vec3 viewDirection){
-    {T::colorSample(int(), int(), uint(), Vec3())} -> std::same_as<uint>;
+} && requires(float u, float v, float d, uint triangleID, Vec3 viewDirection){
+    {T::colorSample(u, v, triangleID, viewDirection, d)} -> std::same_as<uint>;
 };
 
 // 所有涉及部分透明面片的逻辑在这里实现，包括线框渲染，单片草之类的
@@ -186,7 +186,6 @@ template<typename FragmentShader>
                     tile.zInv[y][x] = tempZInv.val;
                     tile.u_z[y][x] = tempUZ.val;
                     tile.v_z[y][x] = tempVZ.val;
-                    tile.materialID[y][x] = ShaderInternal::triangles[frag.triangleID].materialID;
                 }else if(passFlag)break;
             }
 
@@ -207,8 +206,8 @@ template<typename FragmentShader>
 
 
 template<typename FragmentShader>
-    requires IsShader<FragmentShader> uint colorDetermination(float u, float v, uint triangleID, const Vec3 &view){
-    return FragmentShader::colorSample(u, v, triangleID, view);
+    requires IsShader<FragmentShader> uint colorDetermination(float u, float v, uint triangleID, const Vec3 &view, float d=0.0f){
+    return FragmentShader::colorSample(u, v, triangleID, view, d);
 }
 
 #endif // SHADER_INTERFACE_H

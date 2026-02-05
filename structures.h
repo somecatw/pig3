@@ -14,7 +14,9 @@ struct ShaderConfig{
         UseAlphaBitmap     = 0x0002,
         MonoChrome         = 0x0004,
         DisableLightModel  = 0x0008,
-        DisableBackCulling = 0x0010;
+        DisableBackCulling = 0x0010,
+        DisableMipmap      = 0x0020,
+        UseTrilinearSample = 0x0040;
 };
 
 struct Material{
@@ -126,6 +128,7 @@ struct FrameStat{
     int tcnt;
     int tileFragmentSum;
     std::atomic<uint> pixelIterated;
+    float fps;
 };
 
 extern FrameStat frameStat;

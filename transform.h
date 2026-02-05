@@ -7,8 +7,8 @@
 
 struct Transform
 {
-    Vec3 translation;
-    Mat3 rotation;
+    Vec3 translation = {0, 0, 0};
+    Mat3 rotation = Mat3::eye();
 
     Transform inverseTransform() const{
         return {-1 * translation * rotation, rotation.transpose()};
