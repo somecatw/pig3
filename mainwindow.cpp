@@ -39,6 +39,14 @@ MainWindow::MainWindow(QWidget *parent)
     memset(wasdFlags, 0, 4u);
     startPoint = {0,0};
     xacc = yacc = 0;
+
+    Transform a = Transform::translate({1,2,3}) * Transform::rotateAroundAxis({0,1,1}, 0.76);
+    Transform b = Transform::translate({2,1,3}) * Transform::rotateAroundAxis({0,1,0}, 0.25);
+    Transform c = Transform::translate({3,-2,1}) * Transform::rotateAroundAxis({1,1,1}, -0.34);
+
+    qDebug()<<(a*b*c).translation.to_string();
+    qDebug()<<(a*(b*c)).translation.to_string();
+    // exit(0);
 }
 
 void MainWindow::updateFrame(){
@@ -56,21 +64,24 @@ void MainWindow::updateFrame(){
     fpsLabel ->setText(QString::number(frameStat.fps)+" fps");
 
     if(wasdFlags[0]){
-        camTrans = camTrans * Transform::translate({0, 0, 100});
+        camTrans = Transform::translate({0, 0, 100}) * camTrans;
     }
     if(wasdFlags[1]){
-        camTrans = camTrans * Transform::translate({-100, 0, 0});
+        camTrans = Transform::translate({-100, 0, 0}) * camTrans;
     }
     if(wasdFlags[2]){
-        camTrans = camTrans * Transform::translate({0, 0, -100});
+        camTrans = Transform::translate({0, 0, -100}) * camTrans;
     }
     if(wasdFlags[3]){
-        camTrans = camTrans * Transform::translate({100, 0, 0});
+        camTrans = Transform::translate({100, 0, 0}) * camTrans;
     }
     if(dragFlag){
-        camTrans = camTrans
-                   * Transform::rotateAroundAxis(camTrans.rotation.row(0), 0.01*yacc)
+        Vec3 tmp = camTrans.translation;
+        camTrans = Transform::rotateAroundAxis({1,0,0}, 0.01*yacc)
+                   * camTrans
                    * Transform::rotateAroundAxis({0,1,0}, -0.01*xacc);
+        camTrans.translation = tmp;
+
         xacc = yacc = 0;
     }
 

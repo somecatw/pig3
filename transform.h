@@ -11,12 +11,12 @@ struct Transform
     Mat3 rotation = Mat3::eye();
 
     Transform inverseTransform() const{
-        return {-1 * translation * rotation, rotation.transpose()};
+        return {-1 * translation * rotation.transpose(), rotation.transpose()};
     }
 
     Transform operator *(const Transform &other) const{
         return {
-            translation + other.translation * rotation,
+            other.translation + translation * other.rotation,
             rotation * other.rotation
         };
     }
@@ -26,7 +26,7 @@ struct Transform
         return {v, Mat3::eye()};
     }
     static inline Transform rotateAroundPoint(const Vec3 &pos, const Vec3 &axis, float rad){
-        return translate(pos) * rotateAroundAxis(axis, rad) * translate(-pos);
+        return translate(-pos) * rotateAroundAxis(axis, rad) * translate(pos);
     }
 };
 
