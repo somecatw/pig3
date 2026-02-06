@@ -58,21 +58,21 @@ uint inline uintBlend(uint c1, uint c2, int alpha){
     return (rb & 0xFF00FF) | (g & 0x00FF00);
 }
 uint inline BilinearSample(float u, float v, int l, const Material &mtl){
-    const QImage *texture = &mtl.mipmaps.at(l);
+    // const QImage *texture = &mtl.mipmaps.at(l);
+    const TextureMap *texture = &mtl.mipmap2.at(l);
 
-    int w = texture->width();
-    int h = texture->height();
+    int w = texture->w;
+    int h = texture->h;
 
     float ru = u*w;
     float rv = v*h;
 
-    int x0 = int(ru)%w;
-    int y0 = int(rv)%h;
-    if(x0<0) x0 += w;
-    if(y0<0) y0 += h;
+    uint x0 = int(ru)&(w-1);
+    uint y0 = int(rv)&(h-1);
+    // if(x0<0) x0 += w;
+    // if(y0<0) y0 += h;
 
-    uint *ptr0 = (uint*)texture->constScanLine(y0);
-    uint c00 = ptr0[x0] & 0xffffff;
+    uint c00 = texture->pixel(x0, y0) & 0xffffff;
     return c00;
 }
 class BaseShader{
@@ -91,29 +91,25 @@ public:
 
         const Material &material = assetManager.getMaterials()[materialID];
 
-        int w = material.img.width();
-        int h = material.img.height();
+        int w = material.mipmap2[0].w;
+        int h = w; //material.mipmap2[0].h;
 
-        float pxSpan = std::min(255.0f, std::max(0.999f, d * std::max(w, h)));
+        float pxSpan = std::clamp(d * w, 0.999f, 255.0f);
         int level = lg2[int(pxSpan)];
-        // level = 0;
 
-        const QImage *texture = &material.mipmaps.at(std::max(0, level-1));
+        const TextureMap &texture = material.mipmap2[std::max(0, level-1)];
 
-        w = texture->width();
-        h = texture->height();
+        w = texture.w;
+        h = w;
 
         float ru = u*w;
         float rv = v*h;
 
-        int x0 = int(ru)%w;
-        int y0 = int(rv)%h;
-        if(x0<0) x0 += w;
-        if(y0<0) y0 += h;
+        uint x0 = int(ru)&(w-1);
+        uint y0 = int(rv)&(h-1);
 
-        uint *ptr0 = (uint*)texture->constScanLine(y0);
-        uint c00 = ptr0[x0] & 0xffffff;
-
+        // uint *ptr0 = (uint*)texture->constScanLine(y0);
+        uint c00 = texture.pixel(x0, y0) & 0xffffff;
 
         if(level > 1){
             float lgSpan = lg2f[int(pxSpan * 16.0f)];

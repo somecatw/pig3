@@ -43,13 +43,17 @@ std::atomic<int> tmp1 = 0, tmp2=0, tmp3=0;
 
 void runTask(const RenderTask &task){
     Tile *tile = task.tile;
-    tile->zInvMin = 0.0f;
+    tile->zInvMin = 1e9f;
+    tile->cpCount = 0;
 
     for(int y=0;y<tileSize;y++)
         for(int x=0;x<tileSize;x++){
             tile->triangleID[y][x] = 0x80000000;
-            tile->zInv[y][x] = 0;
+            // tile->zInv[y][x] = 0;
+            // tile->vis[y][x] = 0;
         }
+    memset(tile->zInv, 0, sizeof(tile->zInv));
+    memset(tile->vis, 0, sizeof(tile->vis));
 
     for(const Fragment *ptr:task.fragments){
         int tileLevelResult = TileLevelResult::UNKNOWN;
@@ -80,7 +84,9 @@ void runTask(const RenderTask &task){
             }
         }
     }
-    for(int y=0;y<tileSize;y++)
+    for(int y=0;y<tileSize;y++){
+        int globalY = tileYlt+y;
+        int bufferBase = globalY * ShaderInternal::pixelW;
         for(int x=0;x<tileSize;x++){
             uint colorRef = 0xff000000;
             if(tile->triangleID[y][x] < 0x80000000u){
@@ -118,11 +124,12 @@ void runTask(const RenderTask &task){
                     colorRef = colorDetermination<BaseShader>(u, v, task.tile->triangleID[y][x], {1,0,0}, d);
             }
             int globalX = tileXlt+x;
-            int globalY = tileYlt+y;
+
 
             // if(globalX%64==0 || globalY%64==0) colorRef = 0xffff0000;
-            ShaderInternal::buffer[globalY * ShaderInternal::pixelW + globalX] = colorRef;
+            ShaderInternal::buffer[bufferBase + globalX] = colorRef;
         }
+    }
 }
 
 

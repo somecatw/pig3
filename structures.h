@@ -19,12 +19,6 @@ struct ShaderConfig{
         UseTrilinearSample = 0x0040;
 };
 
-struct Material{
-    QImage img;
-    std::vector<QImage> mipmaps;
-    void setImage(const QImage &_img);
-};
-
 struct Vertex{
     Vec3 pos, uv;
 };
@@ -107,12 +101,6 @@ struct Fragment{
     int xlt, ylt, xrb, yrb;
     EdgeIterator edgeIterator;
     Iterator2D zInv, u_z, v_z;
-};
-
-struct ShadingUnit{
-    uint triangleID;
-    float zInv;
-    float u_z, v_z;
 };
 
 struct CameraInfo{

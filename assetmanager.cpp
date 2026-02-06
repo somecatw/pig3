@@ -8,6 +8,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include "utils.h"
 
 // 定义全局AssetManager实例
 AssetManager assetManager;
@@ -193,16 +194,52 @@ bool AssetManager::loadOBJ(const QString& objPath)
     return !m_meshes.empty();
 }
 
+int clg2(int x){
+    for(int i=1;i<=20;i++){
+        if((1<<i)>=x)return i;
+    }
+    return 20;
+}
 void Material::setImage(const QImage &_img){
     img = _img.convertToFormat(QImage::Format_ARGB32);
     // assert(img.width()%16==0 && img.height()%16==0);
-    mipmaps.clear();
-    int w = img.width();
-    int h = img.height();
+    // mipmaps.clear();
+    mipmap2.clear();
+    int w = 1<<clg2(img.width());
+    int h = 1<<clg2(img.height());
+    w = std::max(w, h);
+    h = w;
     for(int mipLevel = 0; mipLevel <= 8; mipLevel ++){
         int currW = (w-1) / (1<<mipLevel) + 1;
         int currH = (h-1) / (1<<mipLevel) + 1;
 
-        mipmaps.push_back(img.scaled(currW, currH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+        QImage tmp = img.scaled(currW, currH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        // mipmaps.push_back(tmp);
+        mipmap2.push_back(tmp);
+    }
+}
+
+TextureMap::TextureMap(const QImage &img){
+    w = img.width();
+    h = img.height();
+
+    assert(__builtin_popcount(w) == 1 && w == h);
+    int ph = (h-1) / textureTileSize + 1;
+    int pw = (w-1) / textureTileSize + 1;
+    tiles.clear();
+    tiles.resize(ph);
+    for(auto [id, line]: enumerate(tiles)){
+        line.resize(pw);
+        for(int i=0;i<pw;i++){
+            int currY = id * textureTileSize;
+            int currX = i  * textureTileSize;
+            for(int dy=0; dy<textureTileSize; dy++){
+                if(currY+dy >= h)break;
+                for(int dx=0; dx<textureTileSize; dx++){
+                    if(currX+dx >= w)break;
+                    line[i].pixels[dy][dx] = img.pixel(currX+dx, currY+dy);
+                }
+            }
+        }
     }
 }

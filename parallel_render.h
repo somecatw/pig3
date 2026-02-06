@@ -16,6 +16,8 @@ struct Tile{
     float zInv[tileSize][tileSize], u_z[tileSize][tileSize], v_z[tileSize][tileSize];
     float zInvMin;
     float derivative[tileSize][tileSize];
+    bool vis[tileSize][tileSize];
+    int cpCount;
 };
 
 struct TiledFragment{

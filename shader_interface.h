@@ -154,6 +154,11 @@ template<typename FragmentShader>
             yrb = std::min(yrb, precYrb);
         }
     }
+    float zMax = zInv.val + std::max({xlt*zInv.dv_dx+ylt*zInv.dv_dy,
+                                      xrb*zInv.dv_dx+ylt*zInv.dv_dy,
+                                      xlt*zInv.dv_dx+yrb*zInv.dv_dy,
+                                      xrb*zInv.dv_dx+yrb*zInv.dv_dy});
+    if(zMax < tile.zInvMin && tile.cpCount == tileSize*tileSize) return;
 
     frameStat.pixelIterated += (xrb-xlt+1)*(yrb-ylt+1);
 
@@ -181,6 +186,11 @@ template<typename FragmentShader>
                 bool result = FragmentShader::alphaTest(frag.triangleID, tempEdgeIt, tempZInv, tempUZ, tempVZ);
                 if(result){
                     passFlag = true;
+                    if(!tile.vis[y][x]){
+                        tile.vis[y][x] = true;
+                        tile.cpCount ++;
+                        tile.zInvMin = std::min(tile.zInvMin, tempZInv.val);
+                    }
                     // tile.zInvMin = min(tile.zInvMin, tempZInv.val);
                     tile.triangleID[y][x] = frag.triangleID;
                     tile.zInv[y][x] = tempZInv.val;

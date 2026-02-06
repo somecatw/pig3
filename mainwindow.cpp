@@ -23,7 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     timer->start(std::chrono::milliseconds(16));
     // assetManager.loadOBJ("D:\\project\\qt_c++\\pig3\\assets\\wuqie.obj");
     // assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
-    assetManager.loadOBJ("..\\..\\assets\\dust3\\part10.obj");
+    assetManager.loadOBJ(".\\assets\\dust3\\part10.obj");
 
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
     for(Mesh &m:assetManager.getMeshes()){
@@ -51,7 +51,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::updateFrame(){
     uint *ptr=(uint*)img->bits();
-    t+=2;
     // ttfa.applyTransform(Transform::rotateAroundAxis({0,1,0}, 0.015));
     // ttfa.shaderConfig = ShaderConfig::DisableBackCulling | ShaderConfig::WireframeOnly;
 
@@ -89,8 +88,8 @@ void MainWindow::updateFrame(){
     cam.focalLength = 4.0f;
     float yy;
 
-    yy = 280 + 150 * min(max(0.0f, t-450.0f)/450, 1.0f);
-    cam.pos = {float(1600-t), yy, 2150};
+    // yy = 280 + 150 * min(max(0.0f, t-450.0f)/450, 1.0f);
+    // cam.pos = {float(1600-t), yy, 2150};
     cam.pos = camTrans.translation;
 
     // 带光影版的参数
