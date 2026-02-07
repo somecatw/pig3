@@ -2,6 +2,7 @@
 #define PARALLEL_RENDER_H
 
 #include <QObject>
+#include <latch>
 #include <thread>
 #include "structures.h"
 
@@ -64,9 +65,8 @@ private:
     std::vector<std::thread> workers;
     std::vector<WorkerControl*> controls;
     std::atomic<int> finishedCount;
-    std::atomic<int> taskFinishedCount;
 
-    std::atomic<int> stolen;
+    std::unique_ptr<std::latch> workDone;
 
 };
 extern RenderTaskDispatcher taskDispatcher;

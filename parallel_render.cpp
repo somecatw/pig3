@@ -41,7 +41,7 @@ int tileLevelIterate(const Fragment &frag, int tileXlt, int tileYlt){
 
 std::atomic<int> tmp1 = 0, tmp2=0, tmp3=0;
 
-void runTask(const RenderTask &task){
+void runTask(RenderTask &task){
     Tile *tile = task.tile;
     tile->zInvMin = 1e9f;
     tile->cpCount = 0;
@@ -54,6 +54,11 @@ void runTask(const RenderTask &task){
         }
     memset(tile->zInv, 0, sizeof(tile->zInv));
     memset(tile->vis, 0, sizeof(tile->vis));
+
+
+    sort(task.fragments.begin(), task.fragments.end(), [](const Fragment *a, const Fragment *b){
+        return maxZInv[a->triangleID] > maxZInv[b->triangleID];
+    });
 
     for(const Fragment *ptr:task.fragments){
         int tileLevelResult = TileLevelResult::UNKNOWN;
@@ -153,7 +158,6 @@ RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
                     int h = ctrl->head;
                     ctrl->head ++;
                     runTask(ctrl->bucket[h]);
-                    taskFinishedCount ++;
                 }
                 ctrl->state.store(0, std::memory_order_release);
                 finishedCount.fetch_add(1, std::memory_order_release);
@@ -167,10 +171,10 @@ RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
                         if(controls[id]->tail.compare_exchange_strong(ctail, tmp)){
                             if(controls[id]->head > ctail) continue;
                             runTask(controls[id]->bucket[ctail]);
-                            taskFinishedCount ++;
                         }
                     }
                 }
+                workDone->count_down();
             }
         });
 
@@ -189,7 +193,6 @@ void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
 
     finishedCount.store(0, std::memory_order_relaxed);
     int taskCount = 0;
-    taskFinishedCount = 0;
 
     for (int i = 0; i < threadCount; ++i) {
         taskCount += buckets[i].size();
@@ -198,23 +201,8 @@ void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
         controls[i]->state.notify_one();
     }
 
-    // 又有原子又有自旋，我看这是量子物理 ---somecat
-
-    // 主线程自旋等待完成：4ms 级别不建议挂起，直接自旋
-    auto t0 = chrono::system_clock::now();
-    int curr = 0, tmp;
-    while (1) {
-        // 这里可以加一行针对特定平台的 pause 指令来稍微优化功耗
-        // tmp = finishedCount.load(std::memory_order_acquire);
-        // if(tmp > curr){
-        //     curr = tmp;
-        //     auto t = chrono::system_clock::now();
-        //     qDebug()<<t-t0;
-        // }
-        if(taskFinishedCount >= taskCount) break;
-    }
-
-    // qDebug()<<t-t0;
+    workDone = make_unique<latch>(threadCount);
+    workDone->wait();
 
 }
 void RenderTaskDispatcher::init(){

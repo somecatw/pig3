@@ -4,3 +4,4 @@ assets/dust3
 ./CMakeLists.txt.user
 release/
 *.zip
+CMakeLists.txt.user

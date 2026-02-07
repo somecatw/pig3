@@ -18,6 +18,7 @@ namespace ShaderInternal{
     vector<Vertex> projectedVertices;
 
     vector<Fragment> fragments;
+    vector<float> maxZInv;
 }
 
 
@@ -67,11 +68,11 @@ public:
 
             projectedVertices.push_back({pos, uv});
         }
-        // sort(triangles.begin(), triangles.end(), [](const Triangle &a, const Triangle &b){
-        //     // return a.materialID < b.materialID;
-        //     return max({projectedVertices[a.vid[0]].pos.z, projectedVertices[a.vid[1]].pos.z, projectedVertices[a.vid[2]].pos.z})
-        //           > max({projectedVertices[b.vid[0]].pos.z, projectedVertices[b.vid[1]].pos.z, projectedVertices[b.vid[2]].pos.z});
-        // });
+
+        maxZInv.resize(triangles.size());
+        for(int i=0;i<triangles.size();i++){
+            maxZInv[i] = max({projectedVertices[triangles[i].vid[0]].pos.z, projectedVertices[triangles[i].vid[1]].pos.z, projectedVertices[triangles[i].vid[2]].pos.z});
+        }
     }
     void frontClip(){
         // 可能在 triangles 末尾填充切分出的新三角形

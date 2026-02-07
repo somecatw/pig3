@@ -13,6 +13,7 @@ namespace ShaderInternal{
     extern uint pixelW, pixelH;
     extern std::vector<Vertex> projectedVertices;
     extern std::vector<Fragment> fragments;
+    extern std::vector<float> maxZInv;
 }
 
 struct ShadingBuffer{
