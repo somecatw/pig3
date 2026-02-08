@@ -33,6 +33,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         parallel_render.h
         parallel_render.cpp
         shader_interface.h
+        stage3d.h stage3d.cpp
 
     )
 

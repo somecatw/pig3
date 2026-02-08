@@ -5,7 +5,7 @@
 #include <QLabel>
 #include <QImage>
 #include <QTimer>
-#include "structures.h"
+#include "stage3d.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -32,10 +32,11 @@ protected:
 private:
     Ui::MainWindow *ui;
     int t;
-    QImage *img;
-    QLabel *label, *fpsLabel;
+    QLabel *fpsLabel;
     QTimer *timer;
-    Mesh ttfa;
+
+    Stage3D *stage;
+    Camera *camera;
 
     // 迫真 wasd 实现
     Transform camTrans;

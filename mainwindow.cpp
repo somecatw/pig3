@@ -2,8 +2,8 @@
 #include "./ui_mainwindow.h"
 #include "mathbase.h"
 #include "structures.h"
-#include "render.h"
 #include "assetmanager.h"
+#include "utils.h"
 #include <QKeyEvent>
 
 using namespace std;
@@ -13,11 +13,10 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    label=new QLabel(this);
+    stage = new Stage3D(this);
     t=0;
-    this->setCentralWidget(label);
-    // img = new QImage(640, 448, QImage::Format_ARGB32);
-    img = new QImage(960, 640, QImage::Format_ARGB32);
+    this->setCentralWidget(stage);
+
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::updateFrame);
     timer->start(std::chrono::milliseconds(16));
@@ -25,43 +24,40 @@ MainWindow::MainWindow(QWidget *parent)
     // assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
     assetManager.loadOBJ("..\\..\\assets\\dust3\\part10.obj");
 
+    GameObject *ttfa = new GameObject(stage->root);
+    for(auto [id, m]: enumerate(assetManager.getMeshes())){
+        new MeshActor(id, ttfa);
+    }
+    CameraInfo info;
+    info.focalLength = 4.0f;
+    info.frame.axisX = {1, 0, 0};
+    info.frame.axisY = {0, 1, 0};
+    info.frame.axisZ = {0, 0, 1};
+    info.width = 15;
+    info.height = 10;
+    info.screenSize = {8, 5.6, 0};
+    camera = new Camera(info, stage->root);
+    stage->activeCam = camera;
+
+
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
+    ttfa->setTransform(rot);
     for(Mesh &m:assetManager.getMeshes()){
-        m.applyTransform(rot);
+        // m.applyTransform(rot);
         m.shaderConfig |= ShaderConfig::DisableLightModel;
     }
     fpsLabel = new QLabel();
     fpsLabel->setFont(QFont("Times New Roman", 15));
     fpsLabel->setText("114514");
     ui->statusbar->insertWidget(0, fpsLabel);
-    // exit(0);
-    // ttfa = assetManager.getMeshes()[1];
+
     memset(wasdFlags, 0, 4u);
     startPoint = {0,0};
     xacc = yacc = 0;
 
-    Transform a = Transform::translate({1,2,3}) * Transform::rotateAroundAxis({0,1,1}, 0.76);
-    Transform b = Transform::translate({2,1,3}) * Transform::rotateAroundAxis({0,1,0}, 0.25);
-    Transform c = Transform::translate({3,-2,1}) * Transform::rotateAroundAxis({1,1,1}, -0.34);
-
-    qDebug()<<(a*b*c).translation.to_string();
-    qDebug()<<(a*(b*c)).translation.to_string();
-    // exit(0);
 }
 
 void MainWindow::updateFrame(){
-    uint *ptr=(uint*)img->bits();
-    // ttfa.applyTransform(Transform::rotateAroundAxis({0,1,0}, 0.015));
-    // ttfa.shaderConfig = ShaderConfig::DisableBackCulling | ShaderConfig::WireframeOnly;
-
-    clearRenderBuffer();
-    // submitMesh(ttfa);
-    for(Mesh &m:assetManager.getMeshes()){
-        // m.applyTransform(Transform::translate({0, 5, 0}));S
-        submitMesh(m);
-    }
-    fpsLabel ->setText(QString::number(frameStat.fps)+" fps");
-
     if(wasdFlags[0]){
         camTrans = Transform::translate({0, 0, 100}) * camTrans;
     }
@@ -83,38 +79,16 @@ void MainWindow::updateFrame(){
 
         xacc = yacc = 0;
     }
+    camera->camInfo.pos = camTrans.translation;
+    camera->camInfo.frame.axisX = camTrans.rotation.row(0);
+    camera->camInfo.frame.axisY = camTrans.rotation.row(1);
+    camera->camInfo.frame.axisZ = camTrans.rotation.row(2);
 
-    CameraInfo cam;
-    cam.focalLength = 4.0f;
-    float yy;
 
-    // yy = 280 + 150 * min(max(0.0f, t-450.0f)/450, 1.0f);
-    // cam.pos = {float(1600-t), yy, 2150};
-    cam.pos = camTrans.translation;
+    fpsLabel->setText(QString::asprintf("%.1f fps (render %.0f us, total %.0f us)", 1e6 / stage->avgFrameTime, stage->avgRenderTime, stage->avgFrameTime));
 
-    // 带光影版的参数
-    // yy = -1000 + 2400 * min(max(0.0f, t*10-8000.0f) / 8000, 1.0f);
-    // cam.pos = {float(26500-t*10), yy, 36000};
-
-    // cam.pos = {0, 2, -24};
-    cam.width = 15;
-    cam.height = 10;
-    // cam.frame.axisX = {sqrt(2.0f)/2, 0, sqrt(2.0f)/2};
-    cam.frame.axisX = {0.5, 0, sqrt(3.0f)/2};
-    // cam.frame.axisX = {1, 0, 0};
-    cam.frame.axisY = {0, 1, 0};
-
-    cam.frame.axisX = camTrans.rotation.row(0);
-    cam.frame.axisY = camTrans.rotation.row(1);
-    cam.frame.axisZ = camTrans.rotation.row(2);
-
-    cam.frame.axisZ = cam.frame.axisX.cross(cam.frame.axisY);
-    qDebug()<<cam.frame.axisZ.to_string();
-
-    cam.screenSize = {8, 5.6, 0};
-    drawFrame(cam, ptr);
-    label->setPixmap(QPixmap::fromImage(*img));
-    // label->setPixmap(QPixmap::fromImage(assetManager.getMaterials()[6].mipmaps[0]));
+    stage->updateFrame();
+    return;
 }
 
 

@@ -49,8 +49,6 @@ void runTask(RenderTask &task){
     for(int y=0;y<tileSize;y++)
         for(int x=0;x<tileSize;x++){
             tile->triangleID[y][x] = 0x80000000;
-            // tile->zInv[y][x] = 0;
-            // tile->vis[y][x] = 0;
         }
     memset(tile->zInv, 0, sizeof(tile->zInv));
     memset(tile->vis, 0, sizeof(tile->vis));
