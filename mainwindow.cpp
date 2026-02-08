@@ -59,31 +59,22 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::updateFrame(){
     if(wasdFlags[0]){
-        camTrans = Transform::translate({0, 0, 100}) * camTrans;
+        camera->localTranslate({0, 0, 100});
     }
     if(wasdFlags[1]){
-        camTrans = Transform::translate({-100, 0, 0}) * camTrans;
+        camera->localTranslate({-100, 0, 0});
     }
     if(wasdFlags[2]){
-        camTrans = Transform::translate({0, 0, -100}) * camTrans;
+        camera->localTranslate({0, 0, -100});
     }
     if(wasdFlags[3]){
-        camTrans = Transform::translate({100, 0, 0}) * camTrans;
+        camera->localTranslate({100, 0, 0});
     }
     if(dragFlag){
-        Vec3 tmp = camTrans.translation;
-        camTrans = Transform::rotateAroundAxis({1,0,0}, 0.01*yacc)
-                   * camTrans
-                   * Transform::rotateAroundAxis({0,1,0}, -0.01*xacc);
-        camTrans.translation = tmp;
-
+        camera->rotateAroundAxis(camera->getTransform().rotation.row(0), 0.01*yacc);
+        camera->rotateAroundAxis({0,1,0}, -0.01*xacc);
         xacc = yacc = 0;
     }
-    camera->camInfo.pos = camTrans.translation;
-    camera->camInfo.frame.axisX = camTrans.rotation.row(0);
-    camera->camInfo.frame.axisY = camTrans.rotation.row(1);
-    camera->camInfo.frame.axisZ = camTrans.rotation.row(2);
-
 
     fpsLabel->setText(QString::asprintf("%.1f fps (render %.0f us, total %.0f us)", 1e6 / stage->avgFrameTime, stage->avgRenderTime, stage->avgFrameTime));
 

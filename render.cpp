@@ -333,13 +333,13 @@ public:
         if(pixelH > ShadingBuffer::H)
             throw runtime_error("height "+to_string(pixelH)+" is too high for buffer");
 
-        for(uint j=0;j<pixelH;j++)
-        {
-            for(uint i=0;i<pixelW;i++){
-                shadingBuffer.zInv[j][i] = 0.0f;
-                shadingBuffer.triangleID[j][i] = 0x80000000u;
-            }
-        }
+        // for(uint j=0;j<pixelH;j++)
+        // {
+        //     for(uint i=0;i<pixelW;i++){
+        //         shadingBuffer.zInv[j][i] = 0.0f;
+        //         shadingBuffer.triangleID[j][i] = 0x80000000u;
+        //     }
+        // }
 
         auto t0 = std::chrono::system_clock::now();
         frontClip();
@@ -378,7 +378,7 @@ public:
         qDebug()<<"total                     |"<<total;
 
         frametimes.push_back(total);
-        if(frametimes.size() > 200u)
+        if(frametimes.size() > 100u)
             frametimes.erase(frametimes.begin());
 
         decltype(total) avg = std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();

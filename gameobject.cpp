@@ -16,6 +16,11 @@ void GameObject::translate(const Vec3 &v){
     transform = transform * Transform::translate(v);
 }
 
+void GameObject::localTranslate(const Vec3 &v){
+    modified = true;
+    transform = Transform::translate(v) * transform;
+}
+
 void GameObject::setTransform(const Transform &t){
     modified = true;
     transform = t;
@@ -26,7 +31,9 @@ const Transform &GameObject::getTransform()const{
 
 void GameObject::rotateAroundAxis(const Vec3 &v, float rad){
     modified = true;
+    Vec3 tmp = transform.translation;
     transform = transform * Transform::rotateAroundAxis(v, rad);
+    transform.translation = tmp;
 }
 
 GameObject *GameObject::parent() const{
@@ -59,3 +66,10 @@ void MeshActor::submitForRender(){
 
 Camera::Camera(const CameraInfo &info, QObject *parent): GameObject(parent), camInfo(info){}
 
+void Camera::updatePosition(const Transform &t){
+    camInfo.pos = t.translation;
+    camInfo.frame.axisX = t.rotation.row(0);
+    camInfo.frame.axisY = t.rotation.row(1);
+    camInfo.frame.axisZ = t.rotation.row(2);
+
+}
