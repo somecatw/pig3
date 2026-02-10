@@ -4,7 +4,6 @@
 #include "structures.h"
 #include "assetmanager.h"
 #include "utils.h"
-#include "raytest.h"
 #include <QKeyEvent>
 
 using namespace std;
@@ -23,7 +22,7 @@ MainWindow::MainWindow(QWidget *parent)
     timer->start(std::chrono::milliseconds(16));
     // assetManager.loadOBJ("D:\\project\\qt_c++\\pig3\\assets\\wuqie.obj");
     // assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
-    assetManager.loadOBJ(".\\assets\\dust3\\part10.obj");
+    assetManager.loadOBJ("..\\..\\assets\\dust3\\part10.obj");
 
     GameObject *ttfa = new GameObject(stage->root);
     for(auto [id, m]: enumerate(assetManager.getMeshes())){
@@ -65,8 +64,21 @@ Vec3 getNormal(const Mesh &mesh, uint triangleID){
     Vec3 v2 = mesh.vertices[mesh.triangles[triangleID].vid[2]].pos;
     return (v1-v0).cross(v2-v0).normalized();
 }
+const float movSpeed = 80;
+const float charaHeight = 1000;
+const float liftThreshold = 325;
+
 Vec3 posIterate(Stage3D *stage, Vec3 pos, Vec3 mov){
-    return {};
+    Vec3 unit = mov.normalized();
+    mov = movSpeed * unit;
+    SceneRayHit movHit = stage->raytest({pos + Vec3({0, charaHeight-liftThreshold, 0}), unit});
+    if(movHit.actor != nullptr && movHit.dis < mov.len()){
+        Vec3 normal = getNormal(movHit.actor->mesh, movHit.triangleID);
+        Vec3 tangent = normal.cross({0, 1, 0});
+        float ttfa = mov.dot(tangent);
+        mov = tangent * ttfa;
+    }
+    return mov;
 }
 bool falling;
 float ySpeed;
@@ -99,54 +111,33 @@ void MainWindow::updateFrame(){
     if(wasdFlags[3]){
         mov -= left;
     }
-    const float movSpeed = 100;
-    const float charaHeight = 1000;
-    const float liftThreshold = 500;
-
     if(mov.len() > 1e-5){
-        Vec3 unit = mov.normalized();
-        mov = movSpeed * unit;
-        SceneRayHit movHit = stage->raytest({pos + Vec3({0, charaHeight-liftThreshold, 0}), unit});
-        if(movHit.actor != nullptr && movHit.dis < mov.len()){
-            Vec3 normal = getNormal(movHit.actor->mesh, movHit.triangleID);
-            Vec3 tangent = normal.cross({0, 1, 0});
-            float ttfa = mov.dot(tangent);
-            mov = tangent * ttfa;
-        }
-
+        mov = posIterate(stage, pos, mov);
+        SceneRayHit wHit = stage->raytest({pos, mov.normalized()});
+        if(wHit.actor != nullptr && wHit.dis < mov.len()) mov = 0.0*(wHit.pos - pos);
         pos += mov;
     }
     if(jumpFlag && !falling){
         falling = true;
         jumpFlag = false;
-        ySpeed = -120;
+        ySpeed = -105;
     }
-    if(ySpeed < 0.0f){
-        SceneRayHit upHit = stage->raytest({pos, {0, -1, 0}});
-        if(upHit.actor != nullptr && upHit.dis < 100){
-            ySpeed = 0.0f;
-            camera->moveToLocalPos(upHit.pos+Vec3({0, 1, 0}));
-        }else{
-            ySpeed += 8;
-            camera->translate(mov);
-            camera->translate({0, ySpeed, 0});
-        }
+
+    SceneRayHit upHit = stage->raytest({pos, {0, -1, 0}});
+    SceneRayHit downHit = stage->raytest({pos, {0, 1, 0}});
+    if(ySpeed < 0.0f && upHit.actor != nullptr && downHit.actor != nullptr && upHit.dis < 100){
+        ySpeed = 0.0f;
+        camera->moveToLocalPos(upHit.pos+Vec3({0, 1, 0}));
+    }else if(ySpeed >= 0.0f && downHit.actor != nullptr && downHit.dis > charaHeight - liftThreshold && downHit.dis < charaHeight + 100){
+        falling = false;
+        ySpeed = 0;
+        camera->moveToLocalPos(downHit.pos + Vec3({0, -charaHeight, 0}));
     }else{
-        SceneRayHit downHit = stage->raytest({pos, {0, 1, 0}});
-        if(downHit.actor != nullptr){
-            if(downHit.dis > charaHeight - liftThreshold){
-                if(downHit.dis < charaHeight + 100){
-                    falling = false;
-                    ySpeed = 0;
-                    camera->moveToLocalPos(downHit.pos + Vec3({0, -charaHeight, 0}));
-                }else{
-                    falling = true;
-                    ySpeed += 8;
-                    camera->translate(mov);
-                    camera->translate({0, ySpeed, 0});
-                }
-            }
-        }
+        falling = true;
+        ySpeed += 6;
+        if(downHit.actor != nullptr && upHit.dis + downHit.dis > charaHeight + 100)
+            camera->translate(mov);
+        camera->translate({0, ySpeed, 0});
     }
 
     fpsLabel->setText(QString::asprintf("%.1f fps (render %.0f us, total %.0f us)", 1e6 / stage->avgFrameTime, stage->avgRenderTime, stage->avgFrameTime));
