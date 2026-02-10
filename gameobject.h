@@ -15,6 +15,7 @@ public:
 
     // 相对于自身的变换
     void localTranslate(const Vec3 &v);
+    void moveToLocalPos(const Vec3 &v);
 
     // 相对于父对象的变换
     void translate(const Vec3 &v);
@@ -53,6 +54,7 @@ public:
     CameraInfo camInfo;
     explicit Camera(const CameraInfo &info, QObject *parent = nullptr);
     void updatePosition(const Transform &t) override;
+    Ray pixelToRay(int w, int h)const;
 };
 
 

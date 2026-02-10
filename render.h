@@ -3,6 +3,8 @@
 
 #include "structures.h"
 
+const bool showStatistics = false;
+
 void clearRenderBuffer();
 
 void submitMesh(const Mesh &mesh);

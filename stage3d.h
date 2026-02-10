@@ -4,6 +4,13 @@
 #include <QWidget>
 #include "gameobject.h"
 
+struct SceneRayHit{
+    MeshActor *actor = nullptr;
+    uint triangleID;
+    float dis;
+    Vec3 pos;
+};
+
 class Stage3D : public QWidget
 {
     Q_OBJECT
@@ -18,12 +25,15 @@ public:
     double avgRenderTime;
 
     void updateFrame();
+    Ray pixelToRay(int x, int y)const;
+    SceneRayHit raytest(const Ray &ray)const;
 protected:
     void paintEvent(QPaintEvent *evt) override;
 private:
     std::vector<double> frameTimes;
     void updateObjects(GameObject *rt, const Transform &c, bool ignoreFlag=false) const;
     void submitObjects(GameObject *rt) const;
+    SceneRayHit recursiveRaytest(GameObject *rt, const Transform &globalTrans, const Ray &ray)const;
 
 signals:
 };

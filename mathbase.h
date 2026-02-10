@@ -12,7 +12,10 @@ class Vec3{
     public:
     float x,y,z;
     Vec3():x(0),y(0),z(0){}
-    Vec3(float _x, float _y, float _z):x(_x),y(_y),z(_z){}  
+    Vec3(float _x, float _y, float _z):x(_x),y(_y),z(_z){}
+    bool isInvalid()const{
+        return x == -1e20 && y == -1e20 && z == -1e20;
+    }
     Vec3 operator +(const Vec3& other)const{
         return {x+other.x, y+other.y, z+other.z};
     }  
@@ -69,7 +72,14 @@ class Vec3{
         return *this;
     }
     void normalize(){
-        (*this)/=len();
+        float l = len();
+        if(std::abs(l) < 1e-5) *this = {1, 0, 0};
+        else (*this)/=l;
+    }
+    Vec3 normalized()const{
+        Vec3 ret=*this;
+        ret.normalize();
+        return ret;
     }
     friend std::ostream& operator <<(std::ostream& cout, const Vec3& v){
         cout<<"["<<v.x<<", "<<v.y<<", "<<v.z<<"]";
@@ -77,6 +87,9 @@ class Vec3{
     }
     std::string to_string()const{
         return "["+std::to_string(x)+", "+std::to_string(y)+", "+std::to_string(z)+"]";
+    }
+    static Vec3 invalidValue(){
+        return {-1e20f, -1e20f, -1e20f};
     }
 };
 class Mat3{
@@ -188,18 +201,19 @@ inline Vec3 SolveLinearEq2(Vec3 eq1, Vec3 eq2){
     };
 }
 
-struct Line{
+struct Ray{
     Vec3 point, direction;
 };
 
-inline Line link(const Vec3 &start, const Vec3& end){
-    return Line({start, end-start});
+inline Ray link(const Vec3 &start, const Vec3& end){
+    return Ray({start, end-start});
 }
 
 struct Plane{
     Vec3 point, normal;
-    Vec3 intersect(const Line& line)const{
+    Vec3 intersect(const Ray& line)const{
         float p1 = line.direction.dot(normal);
+        if(std::abs(p1) < 1e-5f) return Vec3::invalidValue();
         float p2 = (point-line.point).dot(normal);
         return line.point + line.direction / p1 * p2;
     }

@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include "utils.h"
+#include "raytest.h"
 
 // 定义全局AssetManager实例
 AssetManager assetManager;
@@ -125,7 +126,9 @@ bool AssetManager::loadOBJ(const QString& objPath)
         else if (cmd == "usemtl") {
             QString mtlName = QString::fromStdString(parts[1]);
             if (!currentMesh.triangles.empty()) {
+                currentMesh.meshID = m_meshes.size();
                 m_meshes.push_back(currentMesh);
+                raytestManager.appendMesh(currentMesh);
                 currentMesh = Mesh();
                 vertexMap.clear();
             }
@@ -186,6 +189,8 @@ bool AssetManager::loadOBJ(const QString& objPath)
     }
 
     if (!currentMesh.triangles.empty()) {
+        raytestManager.appendMesh(currentMesh);
+        currentMesh.meshID = m_meshes.size();
         m_meshes.push_back(currentMesh);
     }
 

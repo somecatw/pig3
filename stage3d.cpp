@@ -1,5 +1,6 @@
 #include "stage3d.h"
 #include "render.h"
+#include "raytest.h"
 #include <QPaintEvent>
 #include <QPainter>
 using namespace std;
@@ -59,4 +60,39 @@ void Stage3D::submitObjects(GameObject *rt) const{
         child->submitForRender();
         submitObjects(child);
     }
+}
+
+SceneRayHit Stage3D::raytest(const Ray &ray)const{
+    return recursiveRaytest(root, Transform(), ray);
+}
+
+// 过会给对象树也安排上 BVH
+SceneRayHit Stage3D::recursiveRaytest(GameObject *rt, const Transform &globalTrans, const Ray &ray) const{
+    MeshActor *actor = dynamic_cast<MeshActor*>(rt);
+    SceneRayHit dog;
+    assert(rt != nullptr);
+    if(actor != nullptr){
+        Transform inv = globalTrans.inverseTransform();
+        Ray localRay = {ray.point * inv.rotation + inv.translation, ray.direction * inv.rotation};
+        auto ttfa = raytestManager.meshIntersect(actor->meshID, localRay);
+        if(ttfa.hit){
+            dog.actor = actor;
+            dog.dis   = ttfa.dis;
+            dog.pos   = ttfa.pos * globalTrans.rotation + globalTrans.translation;
+            dog.triangleID = ttfa.leaf.triangleID;
+        }
+    }
+    for(GameObject *child:rt->children()){
+        SceneRayHit ttfa = recursiveRaytest(child, child->transform * globalTrans, ray);
+        if(ttfa.actor != nullptr && dog.actor != nullptr && ttfa.dis < dog.dis) dog = ttfa;
+        if(ttfa.actor != nullptr && dog.actor == nullptr) dog = ttfa;
+    }
+    return dog;
+}
+
+Ray Stage3D::pixelToRay(int x, int y) const{
+    if(activeCam == nullptr || this->frameBuffer.isNull()) return {};
+    int x1 = (float)x/this->size().width() * this->frameBuffer.width();
+    int y1 = (float)y/this->size().height() * this->frameBuffer.height();
+    return activeCam->pixelToRay(x1, y1);
 }

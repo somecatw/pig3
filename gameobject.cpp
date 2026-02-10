@@ -21,6 +21,10 @@ void GameObject::localTranslate(const Vec3 &v){
     transform = Transform::translate(v) * transform;
 }
 
+void GameObject::moveToLocalPos(const Vec3 &v){
+    modified = true;
+    transform.translation = v;
+}
 void GameObject::setTransform(const Transform &t){
     modified = true;
     transform = t;
@@ -72,4 +76,13 @@ void Camera::updatePosition(const Transform &t){
     camInfo.frame.axisY = t.rotation.row(1);
     camInfo.frame.axisZ = t.rotation.row(2);
 
+}
+
+Ray Camera::pixelToRay(int x, int y)const{
+    int w = camInfo.width * tileSize;
+    int h = camInfo.height * tileSize;
+    float fx = ((float)x/w - 0.5f) * camInfo.screenSize.x;
+    float fy = ((float)y/h - 0.5f) * camInfo.screenSize.y;
+    Vec3 dir = camInfo.frame.axisZ * camInfo.focalLength + camInfo.frame.axisX * fx + camInfo.frame.axisY * fy;
+    return {camInfo.pos, dir.normalized()};
 }

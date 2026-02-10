@@ -37,6 +37,7 @@ struct Mesh{
     std::vector<Vertex> vertices;
     ushort materialID;
     ushort shaderConfig = 0;
+    uint meshID;
 
     void applyTransform(const Transform &t){
         for(Vertex &v:vertices){

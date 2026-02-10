@@ -42,6 +42,7 @@ private:
     Transform camTrans;
     bool wasdFlags[4];
     bool dragFlag;
+    bool jumpFlag;
     QPoint startPoint;
     int xacc, yacc;
 };

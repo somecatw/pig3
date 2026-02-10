@@ -344,16 +344,16 @@ public:
         auto t0 = std::chrono::system_clock::now();
         frontClip();
         auto t1 = std::chrono::system_clock::now();
-        qDebug()<<"stage1: frontclip         |"<<t1-t0;
+        if(showStatistics) qDebug()<<"stage1: frontclip         |"<<t1-t0;
         vertexProject();
         auto t2 = std::chrono::system_clock::now();
-        qDebug()<<"stage2: vertexProject     |"<<t2-t1;
+        if(showStatistics) qDebug()<<"stage2: vertexProject     |"<<t2-t1;
         getFragments();
         auto t3 = std::chrono::system_clock::now();
-        qDebug()<<"stage3: getFragments      |"<<t3-t2;
+        if(showStatistics) qDebug()<<"stage3: getFragments      |"<<t3-t2;
 
         decltype(t3-t2) total;
-        static vector<decltype(total)> frametimes;
+        static vector<chrono::microseconds> frametimes;
 
         frameStat.vcnt = vertices.size();
         frameStat.tcnt = triangles.size();
@@ -363,28 +363,28 @@ public:
         if(1){
             parallelRasterization();
             auto t4 = std::chrono::system_clock::now();
-            qDebug()<<"stage4&5: parallel render |"<<t4-t3;
+            if(showStatistics) qDebug()<<"stage4&5: parallel render |"<<t4-t3;
             total = t4-t0;
         }else{
             bfRasterization();
             auto t4 = std::chrono::system_clock::now();
-            qDebug()<<"stage4: rasterization     |"<<t4-t3;
+            if(showStatistics) qDebug()<<"stage4: rasterization     |"<<t4-t3;
             determineColor();
             auto t5 = std::chrono::system_clock::now();
-            qDebug()<<"stage5: color             |"<<t5-t4;
+            if(showStatistics) qDebug()<<"stage5: color             |"<<t5-t4;
             total = t5-t0;
         }
-        qDebug()<<"---------------------------------";
-        qDebug()<<"total                     |"<<total;
+        if(showStatistics) qDebug()<<"---------------------------------";
+        if(showStatistics) qDebug()<<"total                     |"<<total;
 
-        frametimes.push_back(total);
+        frametimes.push_back(chrono::duration_cast<chrono::microseconds>(total));
         if(frametimes.size() > 100u)
             frametimes.erase(frametimes.begin());
 
-        decltype(total) avg = std::accumulate(frametimes.begin(), frametimes.end(), decltype(total)(0)) / frametimes.size();
+        chrono::microseconds avg = std::accumulate(frametimes.begin(), frametimes.end(), chrono::microseconds(0)) / frametimes.size();
         int64_t var = 0;
 
-        frameStat.fps = 1e7 / avg.count();
+        frameStat.fps = 1e6 / avg.count();
         for(auto x:frametimes){
             int64_t v = x.count();
             var += v*v;
@@ -393,16 +393,18 @@ public:
         var -= avg.count()*avg.count();
         var = sqrt(var);
 
-        qDebug()<<"total(200 frames avg)     |"<<avg;
-        qDebug()<<"sqrt variance             |"<<var;
+        if(showStatistics) {
+            qDebug()<<"total(200 frames avg)     |"<<avg;
+            qDebug()<<"sqrt variance             |"<<var;
 
-        // 土法 profiling
-        qDebug()<<"---------------------------------";
-        qDebug()<<"statistics:";
-        qDebug()<<"vertex                    |"<<frameStat.vcnt;
-        qDebug()<<"triangle                  |"<<frameStat.tcnt;
-        qDebug()<<"tiled triangle part       |"<<frameStat.tileFragmentSum;
-        qDebug()<<"iterated pixel            |"<<frameStat.pixelIterated;
+            // 土法 profiling
+            qDebug()<<"---------------------------------";
+            qDebug()<<"statistics:";
+            qDebug()<<"vertex                    |"<<frameStat.vcnt;
+            qDebug()<<"triangle                  |"<<frameStat.tcnt;
+            qDebug()<<"tiled triangle part       |"<<frameStat.tileFragmentSum;
+            qDebug()<<"iterated pixel            |"<<frameStat.pixelIterated;
+        }
     }
     friend void clearRenderBuffer();
     friend void submitMesh(const Mesh &mesh);
@@ -428,7 +430,7 @@ void submitMesh(const Mesh &mesh){
         Triangle &curr = triangles.back();
 
         curr.materialID = mesh.materialID;
-        curr.shaderConfig = mesh.shaderConfig;
+        // curr.shaderConfig = mesh.shaderConfig;
         curr.vid[0] += n;
         curr.vid[1] += n;
         curr.vid[2] += n;
