@@ -63,36 +63,49 @@ void Stage3D::submitObjects(GameObject *rt) const{
 }
 
 SceneRayHit Stage3D::raytest(const Ray &ray)const{
-    return recursiveRaytest(root, Transform(), ray);
+    QList<SceneRayHit> res = root->forEach<MeshActor>([&](MeshActor *actor) -> SceneRayHit{
+        Transform global = actor->getGlobalTransform();
+        Transform inv = global.inverseTransform();
+        Ray localRay = {ray.point * inv.rotation + inv.translation, ray.direction * inv.rotation};
+        auto ttfa = raytestManager.meshIntersect(actor->meshID, localRay);
+        if(ttfa.hit) return {actor, ttfa.leaf.triangleID, ttfa.dis, ttfa.pos*global.rotation+global.translation};
+        else return {};
+    });
+    return *min_element(res.begin(), res.end(), [](SceneRayHit a, SceneRayHit b){
+        if(a.miss()) return false;
+        if(b.miss()) return true;
+        return a.dis < b.dis;
+    });
 }
 
 // 过会给对象树也安排上 BVH
-SceneRayHit Stage3D::recursiveRaytest(GameObject *rt, const Transform &globalTrans, const Ray &ray) const{
-    MeshActor *actor = dynamic_cast<MeshActor*>(rt);
-    SceneRayHit dog;
-    assert(rt != nullptr);
-    if(actor != nullptr){
-        Transform inv = globalTrans.inverseTransform();
-        Ray localRay = {ray.point * inv.rotation + inv.translation, ray.direction * inv.rotation};
-        auto ttfa = raytestManager.meshIntersect(actor->meshID, localRay);
-        if(ttfa.hit){
-            dog.actor = actor;
-            dog.dis   = ttfa.dis;
-            dog.pos   = ttfa.pos * globalTrans.rotation + globalTrans.translation;
-            dog.triangleID = ttfa.leaf.triangleID;
-        }
-    }
-    for(GameObject *child:rt->children()){
-        SceneRayHit ttfa = recursiveRaytest(child, child->transform * globalTrans, ray);
-        if(ttfa.actor != nullptr && dog.actor != nullptr && ttfa.dis < dog.dis) dog = ttfa;
-        if(ttfa.actor != nullptr && dog.actor == nullptr) dog = ttfa;
-    }
-    return dog;
-}
 
 Ray Stage3D::pixelToRay(int x, int y) const{
     if(activeCam == nullptr || this->frameBuffer.isNull()) return {};
     int x1 = (float)x/this->size().width() * this->frameBuffer.width();
     int y1 = (float)y/this->size().height() * this->frameBuffer.height();
     return activeCam->pixelToRay(x1, y1);
+}
+BBox3D boxTransform(const BBox3D &box, const Transform &transform){
+    vector<Vec3> lst;
+    for(float x:{box.x1, box.x2})
+        for(float y:{box.y1, box.y2})
+            for(float z:{box.z1, box.z2}){
+                Vec3 v = {x, y, z};
+                v = v*transform.rotation + transform.translation;
+                lst.push_back(v);
+            }
+    BBox3D ret(lst);
+    return ret;
+}
+set<BoxtestResult> Stage3D::boxtest(const BBox3D &box)const{
+    return raytestManager.sceneBoxIntersect(box);
+}
+
+void Stage3D::buildStaticBVH(){
+    updateFrame();
+    raytestManager.buildStaticBVH(root->forEach<MeshActor>([](const MeshActor *actor)->Mesh{
+        return actor->mesh;
+    }));
+    qDebug()<<"scene static BVH built";
 }

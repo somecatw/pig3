@@ -39,6 +39,11 @@ void GameObject::rotateAroundAxis(const Vec3 &v, float rad){
     transform = transform * Transform::rotateAroundAxis(v, rad);
     transform.translation = tmp;
 }
+Transform GameObject::getGlobalTransform()const{
+    GameObject *f = parent();
+    if(f == nullptr) return Transform();
+    return transform * f->getGlobalTransform();
+}
 
 GameObject *GameObject::parent() const{
     return dynamic_cast<GameObject*>(QObject::parent());
@@ -75,7 +80,6 @@ void Camera::updatePosition(const Transform &t){
     camInfo.frame.axisX = t.rotation.row(0);
     camInfo.frame.axisY = t.rotation.row(1);
     camInfo.frame.axisZ = t.rotation.row(2);
-
 }
 
 Ray Camera::pixelToRay(int x, int y)const{

@@ -4,10 +4,19 @@
 #include "structures.h"
 #include "utils.h"
 #include <QDebug>
+#include <set>
 
 struct BBox3D{
     float x1, x2, y1, y2, z1, z2;
     BBox3D(){x1=1e9,x2=-1e9,y1=1e9,y2=-1e9,z1=1e9,z2=-1e9;}
+    BBox3D(const std::vector<Vec3> &l){
+        x1=1e9,x2=-1e9,y1=1e9,y2=-1e9,z1=1e9,z2=-1e9;
+        for(const Vec3 &v:l){
+            x1=std::min(x1,v.x),x2=std::max(x2,v.x);
+            y1=std::min(y1,v.y),y2=std::max(y2,v.y);
+            z1=std::min(z1,v.z),z2=std::max(z2,v.z);
+        }
+    }
     BBox3D(const std::initializer_list<Vec3> &l){
         x1=1e9,x2=-1e9,y1=1e9,y2=-1e9,z1=1e9,z2=-1e9;
         for(const Vec3 &v:l){
@@ -26,7 +35,31 @@ struct BBox3D{
     bool disjointCheck(const BBox3D &other)const{
         return x1>other.x2||x2<other.x1||y1>other.y2||y2<other.y1||z1>other.z2||z2<other.z1;
     }
+    std::pair<float, float> project(const Vec3 axis)const{
+        float minv = 1e18;
+        float maxv = -1e18;
+        for(float x:{x1, x2}){
+            for(float y:{y1, y2}){
+                for(float z:{z1, z2}){
+                    float curr = Vec3({x, y, z}).dot(axis);
+                    minv = std::min(minv, curr);
+                    maxv = std::max(maxv, curr);
+                }
+            }
+        }
+        return {minv, maxv};
+    }
     float intersectDis(const Ray &ray)const;
+};
+
+struct BoxtestResult{
+    Vec3 normal;
+    float ymin;
+    bool operator <(const BoxtestResult &other) const{
+        return ymin < other.ymin || (ymin == other.ymin &&
+                                     std::tuple<float,float,float>(normal.x, normal.y, normal.z)
+                                         < std::tuple<float,float,float>(other.normal.x, other.normal.y, other.normal.z) );
+    }
 };
 
 namespace Raytest{
@@ -76,6 +109,8 @@ namespace Raytest{
         return {0, hit, dis};
     }
 
+    std::optional<BoxtestResult> lowLevelBoxIntersect(const BVHLeaf<Triangle> &leaf, const BBox3D &box);
+
     template<typename T> concept BVHContainable = requires(BVHLeaf<T> obj, const Ray &ray){
         {obj.box} -> std::same_as<BBox3D&>;
         {lowLevelIntersect(obj, ray)} -> std::same_as<RaytestHit>;
@@ -92,6 +127,8 @@ template<typename T> struct RaytestResult{
     float dis;
     Raytest::BVHLeaf<T> leaf;
 };
+
+
 struct BVHNode{
     uint leafID; // -1 if not leaf
     BBox3D box;
@@ -134,6 +171,17 @@ private:
         if(hitR.hitID == -1) return hitL;
         if(hitL.dis < hitR.dis) return hitL;
         else return hitR;
+    }
+    std::set<BoxtestResult> recursiveBoxIntersect(const BVHNode &rt, const BBox3D &box)const{
+        if(rt.leafID != -1){
+            std::optional<BoxtestResult> res = Raytest::lowLevelBoxIntersect(leaves[rt.leafID], box);
+            if(res.has_value()) return {res.value()};
+            else return {};
+        }
+        std::set<BoxtestResult> ret;
+        if(rt.ls != -1 && !box.disjointCheck(nodes[rt.ls].box)) ret.merge(recursiveBoxIntersect(nodes[rt.ls], box));
+        if(rt.rs != -1 && !box.disjointCheck(nodes[rt.rs].box)) ret.merge(recursiveBoxIntersect(nodes[rt.rs], box));
+        return ret;
     }
     float buildTest(std::vector<uint> &idx, int dim){
         std::sort(idx.begin(), idx.end(), [&](int a, int b){
@@ -192,6 +240,13 @@ private:
 public:
     BVHTree() = default;
     BVHTree(const BVHTree &other) = default;
+    BVHTree& operator=(const BVHTree &other) = default;
+    BVHTree& operator=(BVHTree &&other){
+        if(this == &other) return *this;
+        swap(leaves, other.leaves);
+        swap(nodes, other.nodes);
+        return *this;
+    }
     BVHTree(BVHTree &&other) noexcept{
         if(this == &other) return;
         swap(leaves, other.leaves);
@@ -214,14 +269,23 @@ public:
             return {true, hit.pos, hit.dis, leaves[hit.hitID]};
         }else return {false};
     }
+    std::set<BoxtestResult> boxIntersect(const BBox3D &box)const{
+        assert(nodes.size());
+        return recursiveBoxIntersect(nodes[0], box);
+    }
     friend class RaytestManager;
 };
+
 
 class RaytestManager{
 public:
     std::vector<BVHTree<Triangle>> meshTrees;
+    BVHTree<Triangle> staticSceneBVH;
+
     void appendMesh(const Mesh &mesh);
+    void buildStaticBVH(const QList<Mesh> &lst);
     RaytestResult<Triangle> meshIntersect(uint meshID, const Ray &ray)const;
+    std::set<BoxtestResult> sceneBoxIntersect(const BBox3D &box)const;
 };
 
 extern RaytestManager raytestManager;
