@@ -63,9 +63,9 @@ QList<GameObject*> GameObject::children() const{
     return ret;
 }
 
-MeshActor::MeshActor(uint _meshID, bool isStatic, QObject *_parent)
+MeshActor::MeshActor(uint _meshID, bool _isStatic, QObject *_parent)
     : GameObject(_parent), meshID(_meshID){
-
+    isStatic = _isStatic;
     mesh = assetManager.getMeshes().at(meshID);
 }
 

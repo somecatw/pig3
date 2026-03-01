@@ -22,7 +22,7 @@ MainWindow::MainWindow(QWidget *parent)
     // assetManager.loadOBJ("D:\\project\\qt_c++\\pig3\\assets\\wuqie.obj");
     // GameObject *ttfa = assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
 
-    GameObject *ttfa = assetManager.loadOBJ("..\\..\\assets\\dust3\\part10.obj", true);
+    GameObject *ttfa = stage->loadObj("..\\..\\assets\\dust3\\part10.obj", true);
     ttfa->forEach<MeshActor>([](MeshActor *curr){curr->setScale(0.5f);});
 
     ttfa->setParent(stage->root);
@@ -51,19 +51,19 @@ MainWindow::MainWindow(QWidget *parent)
     stage->activeCam = camera;
     camera->translate({-2000,-1250,-7500});
 
-    // GameObject *ak = assetManager.loadOBJ("..\\..\\assets\\ak.obj");
-    // ak->forEach<MeshActor>([](MeshActor *curr){curr->setScale(0.5f);});
-    // ak->setParent(camera);
-    // ak->setTransform(Transform::rotateAroundAxis({0, 1, 0}, 1.57)*Transform::rotateAroundAxis({0, 0, 1}, -1.57));
-    // ak->translate({150, 75, 350});
+    GameObject *ak = stage->loadObj("..\\..\\assets\\ak.obj");
+    ak->forEach<MeshActor>([](MeshActor *curr){curr->setScale(0.25f);});
+    ak->setParent(camera);
+    ak->setTransform(Transform::rotateAroundAxis({0, 1, 0}, 1.57)*Transform::rotateAroundAxis({0, 0, 1}, -1.57));
+    ak->translate({75, 37.5, 175});
 
 
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
     ttfa->setTransform(rot);
-    for(Mesh &m:assetManager.getMeshes()){
-        // m.applyTransform(rot);
-        m.shaderConfig |= ShaderConfig::DisableLightModel;
-    }
+    // for(Mesh &m:assetManager.getMeshes()){
+    //     // m.applyTransform(rot);
+    //     m.shaderConfig |= ShaderConfig::DisableLightModel;
+    // }
     stage->buildStaticBVH();
     fpsLabel = new QLabel();
     fpsLabel->setFont(QFont("Times New Roman", 15));

@@ -9,7 +9,6 @@
 #include <sstream>
 #include <string>
 #include "utils.h"
-#include "raytest.h"
 
 // 定义全局AssetManager实例
 AssetManager assetManager;
@@ -130,8 +129,8 @@ GameObject *AssetManager::loadOBJ(const QString& objPath, bool isStatic)
             if (!currentMesh.triangles.empty()) {
                 currentMesh.meshID = m_meshes.size();
                 m_meshes.push_back(currentMesh);
-                raytestManager.appendMesh(currentMesh);
-                subObjects.push_back(new MeshActor(currentMesh.meshID, false));
+                // raytestManager.appendMesh(currentMesh);
+                subObjects.push_back(new MeshActor(currentMesh.meshID, isStatic));
                 currentMesh = Mesh();
                 vertexMap.clear();
             }
@@ -192,7 +191,7 @@ GameObject *AssetManager::loadOBJ(const QString& objPath, bool isStatic)
     }
 
     if (!currentMesh.triangles.empty()) {
-        raytestManager.appendMesh(currentMesh);
+        // raytestManager.appendMesh(currentMesh);
         currentMesh.meshID = m_meshes.size();
         m_meshes.push_back(currentMesh);
         subObjects.push_back(new MeshActor(currentMesh.meshID, isStatic));

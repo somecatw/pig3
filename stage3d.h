@@ -2,6 +2,7 @@
 #define STAGE3D_H
 
 #include <QWidget>
+#include "assetmanager.h"
 #include "gameobject.h"
 #include "raytest.h"
 #include <set>
@@ -31,6 +32,7 @@ public:
 
     void updateFrame();
     void buildStaticBVH();
+    GameObject *loadObj(const QString &path, bool isStatic=false);
     Ray pixelToRay(int x, int y)const;
     SceneRayHit raytest(const Ray &ray)const;
     std::set<BoxtestResult> boxtest(const BBox3D &box)const;
@@ -41,6 +43,9 @@ private:
     std::vector<double> frameTimes;
     void updateObjects(GameObject *rt, const Transform &c, bool ignoreFlag=false) const;
     void submitObjects(GameObject *rt) const;
+
+    // AssetManager assetManager;
+    RaytestManager raytestManager;
 
 signals:
 };

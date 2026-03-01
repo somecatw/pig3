@@ -107,6 +107,7 @@ class MeshActor : public GameObject{
 public:
     uint meshID;
     Mesh mesh;
+    bool isStatic;
     explicit MeshActor(uint _meshID, bool isStatic = false, QObject *parent = nullptr);
     void updatePosition(const Transform &t) override;
     void submitForRender() override;
@@ -122,6 +123,12 @@ public:
     explicit Camera(const CameraInfo &info, QObject *parent = nullptr);
     void updatePosition(const Transform &t) override;
     Ray pixelToRay(int w, int h)const;
+};
+
+class ParallelLight: public GameObject{
+    Q_OBJECT
+public:
+    CameraInfo lightInfo;
 };
 
 

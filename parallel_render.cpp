@@ -1,7 +1,6 @@
 #include <QThreadPool>
 #include <QObject>
 #include <QDebug>
-#include <random>
 #include "parallel_render.h"
 #include "shader_interface.h"
 #include "utils.h"
@@ -42,8 +41,7 @@ int tileLevelIterate(const Fragment &frag, int tileXlt, int tileYlt){
 
 std::atomic<int> tmp1 = 0, tmp2=0, tmp3=0;
 
-void runTask(RenderTask &task){
-    Tile *tile = task.tile;
+void RenderTask::operator()(){
     tile->zInvMin = 1e9f;
     tile->cpCount = 0;
 
@@ -55,11 +53,11 @@ void runTask(RenderTask &task){
     memset(tile->vis, 0, sizeof(tile->vis));
 
 
-    sort(task.fragments.begin(), task.fragments.end(), [](const Fragment *a, const Fragment *b){
+    sort(fragments.begin(), fragments.end(), [](const Fragment *a, const Fragment *b){
         return maxZInv[a->triangleID] > maxZInv[b->triangleID];
     });
 
-    for(const Fragment *ptr:task.fragments){
+    for(const Fragment *ptr:fragments){
         int tileLevelResult = TileLevelResult::UNKNOWN;
 
         if(ptr->xlt <= tile->tileX*tileSize
@@ -123,9 +121,9 @@ void runTask(RenderTask &task){
                 }
 
                 if(shaderConfig & ShaderConfig::WireframeOnly)
-                    colorRef = colorDetermination<WireframeShader>(u, v, task.tile->triangleID[y][x], {1,0,0}, d);
+                    colorRef = colorDetermination<WireframeShader>(u, v, tile->triangleID[y][x], {1,0,0}, d);
                 else
-                    colorRef = colorDetermination<BaseShader>(u, v, task.tile->triangleID[y][x], {1,0,0}, d);
+                    colorRef = colorDetermination<BaseShader>(u, v, tile->triangleID[y][x], {1,0,0}, d);
             }
             int globalX = tileXlt+x;
 
@@ -136,88 +134,6 @@ void runTask(RenderTask &task){
     }
 }
 
-
-RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
-    :finishedCount(0), threadCount(_threadCount)
-{
-    for(int i=0;i<threadCount;i++){
-        controls.push_back(new WorkerControl());
-        workers.emplace_back([this, i] {
-            auto* ctrl = controls[i];
-            while (true) {
-                ctrl->state.wait(0);
-                if (ctrl->state.load() == 2) break;
-                ctrl->head = 0;
-                ctrl->tail = ctrl->bucket.size()-1;
-
-                // head: 第一个没做的任务
-                // tail: 最后一个没被抢的任务
-                // 现在逻辑还有点小问题，可能有一个 task 被做了两次，概率非常低
-                while(ctrl->head <= ctrl->tail) {
-                    // int h = ctrl->head;
-                    // ctrl->head ++;
-                    // runTask(ctrl->bucket[h]);
-                    int chead = ctrl->head;
-                    int ctail = ctrl->tail;
-                    if(chead > ctail)continue;
-                    int tmp = ctail - 1;
-                    if(ctrl->tail.compare_exchange_strong(ctail, tmp)){
-                        if(ctrl->head > ctail) continue;
-                        runTask(ctrl->bucket[ctail]);
-                    }
-
-                }
-                ctrl->state.store(0);
-                finishedCount.fetch_add(1);
-                while(true){
-                    if(this->finishedCount.load() == this->threadCount) break;
-                    vector<int> ids;
-                    for(auto [id, cxk]: enumerate(controls))
-                        if(cxk->head <= cxk ->tail) ids.push_back(id);
-
-                    if(!ids.size()) continue;
-                    int id = ids[rand()%ids.size()];
-
-                    int chead = controls[id]->head;
-                    int ctail = controls[id]->tail;
-                    if(chead > ctail)continue;
-                    int tmp = ctail - 1;
-                    if(controls[id]->tail.compare_exchange_strong(ctail, tmp)){
-                        if(controls[id]->head > ctail) continue;
-                        runTask(controls[id]->bucket[ctail]);
-                    }
-                }
-                workDone->count_down();
-            }
-        });
-
-    }
-}
-RenderTaskDispatcher::~RenderTaskDispatcher(){
-    for (auto* ctrl : controls) {
-        ctrl->state.store(2);
-        ctrl->state.notify_one();
-    }
-    for (auto& t : workers) t.join();
-    for (auto* ctrl : controls) delete ctrl;
-}
-
-void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
-
-    finishedCount.store(0, std::memory_order_relaxed);
-    int taskCount = 0;
-
-    for (int i = 0; i < threadCount; ++i) {
-        taskCount += buckets[i].size();
-        controls[i]->bucket = std::move(buckets[i]);
-        controls[i]->state.store(1);
-        controls[i]->state.notify_one();
-    }
-
-    workDone = make_unique<latch>(threadCount);
-    workDone->wait();
-
-}
 void RenderTaskDispatcher::init(){
     tileH = camera.height;
     tileW = camera.width;
@@ -266,7 +182,7 @@ void RenderTaskDispatcher::finish(){
         // loads[id%threadCount] += pair.first;
     }
 
-    runBatch(std::move(threadTasks));
+    disp.runBatch(std::move(threadTasks));
     tmp1=tmp2=tmp3=0;
 }
 

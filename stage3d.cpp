@@ -105,7 +105,15 @@ set<BoxtestResult> Stage3D::boxtest(const BBox3D &box)const{
 void Stage3D::buildStaticBVH(){
     updateFrame();
     raytestManager.buildStaticBVH(root->forEach<MeshActor>([](const MeshActor *actor)->Mesh{
-        return actor->mesh;
+        if(actor->isStatic)
+            return actor->mesh;
+        else return {};
     }));
     qDebug()<<"scene static BVH built";
+}
+
+GameObject *Stage3D::loadObj(const QString &path, bool isStatic){
+    GameObject *ret = assetManager.loadOBJ(path, isStatic);
+    ret->forEach<MeshActor>([this](MeshActor *curr){raytestManager.appendMesh(curr->mesh);});
+    return ret;
 }

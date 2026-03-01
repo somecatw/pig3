@@ -44,8 +44,6 @@ RaytestResult<Triangle> RaytestManager::meshIntersect(uint meshID, const Ray &ra
     return meshTrees[meshID].intersect(ray);
 }
 
-RaytestManager raytestManager;
-
 // By gemini
 // 针对单个平面裁剪多边形
 // axis: 0-x, 1-y, 2-z

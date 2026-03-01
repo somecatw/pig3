@@ -288,6 +288,4 @@ public:
     std::set<BoxtestResult> sceneBoxIntersect(const BBox3D &box)const;
 };
 
-extern RaytestManager raytestManager;
-
 #endif // RAYTEST_H
