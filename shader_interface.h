@@ -126,7 +126,7 @@ std::tuple<bool, int, int, int, int> inline getTiledBBox(const Fragment &frag, i
 
 }
 template<typename FragmentShader>
-    requires IsShader<FragmentShader> void tileRasterization(const Fragment &frag, Tile &tile, int tileLevelResult){
+    requires IsShader<FragmentShader> void tileRasterization(const Fragment &frag,Tile& __restrict tile, int tileLevelResult){
 
     if(tileLevelResult == TileLevelResult::OUTER) return;
 
@@ -185,7 +185,7 @@ template<typename FragmentShader>
             if(tile.zInv[y][x] < tempZInv.val){
                 bool result = FragmentShader::alphaTest(frag.triangleID, tempEdgeIt, tempZInv, tempUZ, tempVZ);
                 if(result){
-                    passFlag = true;
+                    // passFlag = true;
                     if(!tile.vis[y][x]){
                         tile.vis[y][x] = true;
                         tile.cpCount ++;

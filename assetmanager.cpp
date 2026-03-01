@@ -63,7 +63,8 @@ std::map<QString, int> AssetManager::loadMTL(const QString& mtlPath, const QStri
         else if (parts[0] == "map_Kd" && hasMat) {
             QString texRelPath = QString::fromStdString(parts[1]);
             QString texAbsPath = QDir(baseDir).absoluteFilePath(texRelPath);
-            currentMat.setImage(QImage(texAbsPath));
+            currentMat.img = QImage(texAbsPath);
+            currentMat.updateImage();
             // currentMat.img = QImage(texAbsPath);
             if (currentMat.img.isNull()) {
                 qWarning() << "  [!] Failed to load texture:" << texAbsPath;
@@ -83,12 +84,12 @@ std::map<QString, int> AssetManager::loadMTL(const QString& mtlPath, const QStri
     mtlFile.close();
     return mtlMap;
 }
-bool AssetManager::loadOBJ(const QString& objPath)
+GameObject *AssetManager::loadOBJ(const QString& objPath, bool isStatic)
 {
     QFile objFile(objPath);
     if (!objFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "[OBJ] Failed to open:" << objPath;
-        return false;
+        return nullptr;
     }
 
     qInfo() << "[OBJ] Loading:" << objPath;
@@ -103,6 +104,7 @@ bool AssetManager::loadOBJ(const QString& objPath)
 
     QString objBaseDir = QFileInfo(objPath).absolutePath();
     QTextStream in(&objFile);
+    QList<MeshActor*> subObjects;
 
     while (!in.atEnd()) {
         QString line = in.readLine().simplified();
@@ -129,6 +131,7 @@ bool AssetManager::loadOBJ(const QString& objPath)
                 currentMesh.meshID = m_meshes.size();
                 m_meshes.push_back(currentMesh);
                 raytestManager.appendMesh(currentMesh);
+                subObjects.push_back(new MeshActor(currentMesh.meshID, false));
                 currentMesh = Mesh();
                 vertexMap.clear();
             }
@@ -192,11 +195,20 @@ bool AssetManager::loadOBJ(const QString& objPath)
         raytestManager.appendMesh(currentMesh);
         currentMesh.meshID = m_meshes.size();
         m_meshes.push_back(currentMesh);
+        subObjects.push_back(new MeshActor(currentMesh.meshID, isStatic));
+    }
+
+    GameObject *ret = nullptr;
+    if(subObjects.size()){
+        ret = new GameObject();
+        for(MeshActor *actor:subObjects)
+            actor->setParent(ret);
     }
 
     objFile.close();
     qInfo() << "[OBJ] Load finished. Total SubMeshes:" << m_meshes.size();
-    return !m_meshes.empty();
+
+    return ret;
 }
 
 int clg2(int x){
@@ -205,10 +217,7 @@ int clg2(int x){
     }
     return 20;
 }
-void Material::setImage(const QImage &_img){
-    img = _img.convertToFormat(QImage::Format_ARGB32);
-    // assert(img.width()%16==0 && img.height()%16==0);
-    // mipmaps.clear();
+void Material::updateImage(){
     mipmap2.clear();
     int w = 1<<clg2(img.width());
     int h = 1<<clg2(img.height());

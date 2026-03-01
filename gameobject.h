@@ -66,7 +66,7 @@ public:
     }
 
 
-private:
+protected:
     bool modified;
     Transform transform;
 
@@ -92,7 +92,7 @@ private:
     void m_forEachObject(FuncType &&func, SelfType *self, Args&& ...args){
         ObjectType *casted = dynamic_cast<ObjectType*>(self);
         if(casted != nullptr)
-            func(self, std::forward<Args>(args)...);
+            func(casted, std::forward<Args>(args)...);
         for(GameObject *child:self->children()){
             m_forEachObject<ObjectType>(std::forward<FuncType>(func), child, std::forward<Args>(args)...);
         }
@@ -107,9 +107,12 @@ class MeshActor : public GameObject{
 public:
     uint meshID;
     Mesh mesh;
-    explicit MeshActor(uint _meshID, QObject *parent = nullptr);
+    explicit MeshActor(uint _meshID, bool isStatic = false, QObject *parent = nullptr);
     void updatePosition(const Transform &t) override;
     void submitForRender() override;
+    void setScale(float s);
+protected:
+    float scale = 1.0f;
 };
 
 class Camera : public GameObject{

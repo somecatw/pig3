@@ -2,6 +2,7 @@
 #define ASSETMANAGER_H
 #include <QString>
 #include "structures.h"
+#include "gameobject.h"
 #include <map>
 
 
@@ -30,7 +31,8 @@ struct Material{
     QImage img;
     // std::vector<QImage> mipmaps;
     std::vector<TextureMap> mipmap2;
-    void setImage(const QImage &_img);
+    // void setImage(const QImage &_img);
+    void updateImage();
 };
 
 class AssetManager
@@ -41,7 +43,8 @@ public:
 
     // 核心接口：加载OBJ文件，返回是否成功
     // objPath: OBJ文件绝对/相对路径（Qt的QString兼容跨平台）
-    bool loadOBJ(const QString& objPath);
+    GameObject *loadOBJ(const QString& objPath, bool isStatic = false);
+    // MeshActor *loadActor(const QString &objPath);
 
     // 公共获取接口（只读，避免外部修改内部数据）
     std::vector<Mesh>& getMeshes() { return m_meshes; }

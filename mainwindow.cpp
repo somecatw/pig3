@@ -3,7 +3,6 @@
 #include "mathbase.h"
 #include "structures.h"
 #include "assetmanager.h"
-#include "utils.h"
 #include <QKeyEvent>
 
 using namespace std;
@@ -21,13 +20,25 @@ MainWindow::MainWindow(QWidget *parent)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateFrame);
     timer->start(std::chrono::milliseconds(16));
     // assetManager.loadOBJ("D:\\project\\qt_c++\\pig3\\assets\\wuqie.obj");
-    // assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
-    assetManager.loadOBJ(".\\assets\\dust3\\part10.obj");
+    // GameObject *ttfa = assetManager.loadOBJ("..\\..\\assets\\dust2\\de_dust2.obj");
 
-    GameObject *ttfa = new GameObject(stage->root);
-    for(auto [id, m]: enumerate(assetManager.getMeshes())){
-        new MeshActor(id, ttfa);
-    }
+    GameObject *ttfa = assetManager.loadOBJ("..\\..\\assets\\dust3\\part10.obj", true);
+    ttfa->forEach<MeshActor>([](MeshActor *curr){curr->setScale(0.5f);});
+
+    ttfa->setParent(stage->root);
+
+
+
+    // GameObject *ttfa = new GameObject(stage->root);
+    // for(auto [id, m]: enumerate(assetManager.getMeshes())){
+    //     new MeshActor(id, true, ttfa);
+    // }
+    // uint s = assetManager.getMeshes().size();
+    // assetManager.loadOBJ("..\\..\\assets\\ak.obj");
+    // for(auto [id, m]: enumerate(assetManager.getMeshes())){
+    //     if(id < s) continue;
+    //     new MeshActor(id, true, ttfa);
+    // }
     CameraInfo info;
     info.focalLength = 4.0f;
     info.frame.axisX = {1, 0, 0};
@@ -38,7 +49,13 @@ MainWindow::MainWindow(QWidget *parent)
     info.screenSize = {8, 5.6, 0};
     camera = new Camera(info, stage->root);
     stage->activeCam = camera;
-    camera->translate({-4000,-2500,-15000});
+    camera->translate({-2000,-1250,-7500});
+
+    // GameObject *ak = assetManager.loadOBJ("..\\..\\assets\\ak.obj");
+    // ak->forEach<MeshActor>([](MeshActor *curr){curr->setScale(0.5f);});
+    // ak->setParent(camera);
+    // ak->setTransform(Transform::rotateAroundAxis({0, 1, 0}, 1.57)*Transform::rotateAroundAxis({0, 0, 1}, -1.57));
+    // ak->translate({150, 75, 350});
 
 
     Transform rot = Transform::rotateAroundAxis({1, 0, 0}, -1.57) * Transform::translate({0, 0, -400});
@@ -65,18 +82,18 @@ Vec3 getNormal(const Mesh &mesh, uint triangleID){
     Vec3 v2 = mesh.vertices[mesh.triangles[triangleID].vid[2]].pos;
     return (v1-v0).cross(v2-v0).normalized();
 }
-const float movSpeed = 80;
-const float charaHeight = 1000;
-const float liftThreshold = 325;
+const float movSpeed = 40;
+const float charaHeight = 500;
+const float liftThreshold = 162;
 
 BBox3D charaBox(const Vec3 &pos, bool extraY=false){
     BBox3D box;
-    box.x1 = pos.x - 200;
-    box.x2 = pos.x + 200;
-    box.y1 = pos.y - 10;
-    box.y2 = pos.y + 1000 + (extraY?100:0);
-    box.z1 = pos.z - 200;
-    box.z2 = pos.z + 200;
+    box.x1 = pos.x - 100;
+    box.x2 = pos.x + 100;
+    box.y1 = pos.y - 5;
+    box.y2 = pos.y + 500 + (extraY?50:0);
+    box.z1 = pos.z - 100;
+    box.z2 = pos.z + 100;
     return box;
 }
 Vec3 posIterate(Stage3D *stage, Vec3 pos, Vec3 mov){
@@ -119,6 +136,7 @@ void MainWindow::updateFrame(){
     Vec3 vz = camera->camInfo.frame.axisZ;
 
     Vec3 front = (vz - Vec3({0, 1, 0}) * Vec3({0, 1, 0}).dot(vz)).normalized();
+    // Vec3 front = vz;
     Vec3 left = front.cross({0, 1, 0});
     Vec3 mov = {0, 0, 0};
     Vec3 pos = camera->camInfo.pos;
@@ -136,6 +154,8 @@ void MainWindow::updateFrame(){
     if(wasdFlags[3]){
         mov -= left;
     }
+    // camera->translate(mov*100);
+    if(true){
     if(mov.len() > 1e-5){
         mov = mov.normalized() * movSpeed;
         mov = posIterate(stage, pos, mov);
@@ -156,7 +176,7 @@ void MainWindow::updateFrame(){
     if(jumpFlag && !falling){
         falling = true;
         jumpFlag = false;
-        ySpeed = -105;
+        ySpeed = -55;
     }
 
     BBox3D box = charaBox(pos, true);
@@ -184,12 +204,12 @@ void MainWindow::updateFrame(){
         camera->moveToLocalPos({pos.x, groundYMin - charaHeight, pos.z});
     }else{
         falling = true;
-        ySpeed += 6;
+        ySpeed += 3;
         // if(downHit.actor != nullptr && upHit.dis + downHit.dis > charaHeight + 100)
         camera->translate(mov);
         camera->translate({0, ySpeed, 0});
     }
-
+    }
     fpsLabel->setText(QString::asprintf("%.1f fps (render %.0f us, total %.0f us)", 1e6 / stage->avgFrameTime, stage->avgRenderTime, stage->avgFrameTime));
 
     stage->updateFrame();

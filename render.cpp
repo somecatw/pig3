@@ -124,7 +124,7 @@ public:
                 tmp.vid[2] = front[1].first;
 
                 if(newNorm2.dot(oldNorm) < 0) swap(tmp.vid[1], tmp.vid[2]);
-                if(newNorm2.dot(oldNorm) < 0) swap(triangle.vid[1], triangle.vid[2]);
+                if(newNorm1.dot(oldNorm) < 0) swap(triangle.vid[1], triangle.vid[2]);
 
                 tmp.materialID = triangle.materialID;
                 tmp.shaderConfig = triangle.shaderConfig;

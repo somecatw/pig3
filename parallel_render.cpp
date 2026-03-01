@@ -1,6 +1,7 @@
 #include <QThreadPool>
 #include <QObject>
 #include <QDebug>
+#include <random>
 #include "parallel_render.h"
 #include "shader_interface.h"
 #include "utils.h"
@@ -144,8 +145,8 @@ RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
         workers.emplace_back([this, i] {
             auto* ctrl = controls[i];
             while (true) {
-                ctrl->state.wait(0, std::memory_order_acquire);
-                if (ctrl->state.load(std::memory_order_relaxed) == 2) break;
+                ctrl->state.wait(0);
+                if (ctrl->state.load() == 2) break;
                 ctrl->head = 0;
                 ctrl->tail = ctrl->bucket.size()-1;
 
@@ -153,23 +154,37 @@ RenderTaskDispatcher::RenderTaskDispatcher(int _threadCount)
                 // tail: 最后一个没被抢的任务
                 // 现在逻辑还有点小问题，可能有一个 task 被做了两次，概率非常低
                 while(ctrl->head <= ctrl->tail) {
-                    int h = ctrl->head;
-                    ctrl->head ++;
-                    runTask(ctrl->bucket[h]);
+                    // int h = ctrl->head;
+                    // ctrl->head ++;
+                    // runTask(ctrl->bucket[h]);
+                    int chead = ctrl->head;
+                    int ctail = ctrl->tail;
+                    if(chead > ctail)continue;
+                    int tmp = ctail - 1;
+                    if(ctrl->tail.compare_exchange_strong(ctail, tmp)){
+                        if(ctrl->head > ctail) continue;
+                        runTask(ctrl->bucket[ctail]);
+                    }
+
                 }
-                ctrl->state.store(0, std::memory_order_release);
-                finishedCount.fetch_add(1, std::memory_order_release);
+                ctrl->state.store(0);
+                finishedCount.fetch_add(1);
                 while(true){
                     if(this->finishedCount.load() == this->threadCount) break;
-                    for(int id=0;id<this->threadCount;id++){
-                        int chead = controls[id]->head;
-                        int ctail = controls[id]->tail;
-                        if(chead > ctail)continue;
-                        int tmp = ctail - 1;
-                        if(controls[id]->tail.compare_exchange_strong(ctail, tmp)){
-                            if(controls[id]->head > ctail) continue;
-                            runTask(controls[id]->bucket[ctail]);
-                        }
+                    vector<int> ids;
+                    for(auto [id, cxk]: enumerate(controls))
+                        if(cxk->head <= cxk ->tail) ids.push_back(id);
+
+                    if(!ids.size()) continue;
+                    int id = ids[rand()%ids.size()];
+
+                    int chead = controls[id]->head;
+                    int ctail = controls[id]->tail;
+                    if(chead > ctail)continue;
+                    int tmp = ctail - 1;
+                    if(controls[id]->tail.compare_exchange_strong(ctail, tmp)){
+                        if(controls[id]->head > ctail) continue;
+                        runTask(controls[id]->bucket[ctail]);
                     }
                 }
                 workDone->count_down();
@@ -195,7 +210,7 @@ void RenderTaskDispatcher::runBatch(vector<std::vector<RenderTask>> &&buckets){
     for (int i = 0; i < threadCount; ++i) {
         taskCount += buckets[i].size();
         controls[i]->bucket = std::move(buckets[i]);
-        controls[i]->state.store(1, std::memory_order_release);
+        controls[i]->state.store(1);
         controls[i]->state.notify_one();
     }
 

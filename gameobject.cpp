@@ -7,6 +7,11 @@ GameObject::GameObject(QObject *parent)
     : QObject{parent}, transform()
 {}
 
+void MeshActor::setScale(float s){
+    modified = true;
+    this->scale = s;
+}
+
 void GameObject::updatePosition(const Transform &t){}
 
 void GameObject::submitForRender(){}
@@ -58,7 +63,7 @@ QList<GameObject*> GameObject::children() const{
     return ret;
 }
 
-MeshActor::MeshActor(uint _meshID, QObject *_parent)
+MeshActor::MeshActor(uint _meshID, bool isStatic, QObject *_parent)
     : GameObject(_parent), meshID(_meshID){
 
     mesh = assetManager.getMeshes().at(meshID);
@@ -66,6 +71,7 @@ MeshActor::MeshActor(uint _meshID, QObject *_parent)
 
 void MeshActor::updatePosition(const Transform &t){
     mesh = assetManager.getMeshes().at(meshID);
+    mesh.scale(this->scale);
     mesh.applyTransform(t);
 }
 

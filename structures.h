@@ -45,6 +45,11 @@ struct Mesh{
             v.pos += t.translation;
         }
     }
+    void scale(float s){
+        for(Vertex &v:vertices){
+            v.pos *= s;
+        }
+    }
 };
 
 struct Iterator2D{
