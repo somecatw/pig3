@@ -5,3 +5,5 @@ assets/dust3
 release/
 *.zip
 CMakeLists.txt.user
+ak.*
+assets/*.png

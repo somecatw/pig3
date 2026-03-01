@@ -4,6 +4,10 @@
 #include <iterator>
 #include <optional>
 #include <utility>
+#include <vector>
+#include <atomic>
+#include <latch>
+#include <thread>
 
 template <typename Container>
 concept is_forward_iterable = requires(Container c) {
@@ -93,5 +97,98 @@ template<typename T>
 auto enumerate(T &&container){
     return enumerate_container<T>(std::forward<T>(container));
 }
+
+template<std::semiregular TaskType> requires std::invocable<TaskType>
+class TaskDispatcher{
+
+    struct WorkerControl {
+        std::atomic<int> state{0}; // 0: 等待, 1: 执行, 2: 退出
+        std::vector<TaskType> bucket;
+        std::atomic<int> head;
+        int tail;
+    };
+public:
+    TaskDispatcher(int _threadCount):finishedCount(0), threadCount(_threadCount){
+        for(int i=0;i<threadCount;i++){
+            controls.push_back(new WorkerControl());
+            workers.emplace_back([this, i] {
+                auto* ctrl = controls[i];
+                while (true) {
+                    ctrl->state.wait(0);
+                    if (ctrl->state.load() == 2) break;
+                    ctrl->head = 0;
+                    ctrl->tail = ctrl->bucket.size()-1;
+
+                    while(ctrl->head <= ctrl->tail) {
+                        int chead = ctrl->head;
+                        int ctail = ctrl->tail;
+                        if(chead > ctail)continue;
+                        int tmp = chead + 1;
+                        if(ctrl->head.compare_exchange_strong(chead, tmp)){
+                            // if(ctrl->head > ctail) continue;
+                            ctrl->bucket[chead]();
+                        }
+
+                    }
+                    ctrl->state.store(0);
+                    finishedCount.fetch_add(1);
+                    while(true){
+                        if(this->finishedCount.load() == this->threadCount) break;
+                        std::vector<int> ids;
+                        for(auto [id, cxk]: enumerate(controls))
+                            if(cxk->head <= cxk ->tail) ids.push_back(id);
+
+                        if(!ids.size()) continue;
+                        int id = ids[rand()%ids.size()];
+
+                        int chead = controls[id]->head;
+                        int ctail = controls[id]->tail;
+                        if(chead > ctail)continue;
+                        int tmp = chead + 1;
+                        if(controls[id]->head.compare_exchange_strong(chead, tmp)){
+                            // if(controls[id]->head > ctail) continue;
+                            controls[id]->bucket[chead]();
+                        }
+                    }
+                    workDone->count_down();
+                }
+            });
+
+        }
+    }
+    ~TaskDispatcher(){
+        for (auto* ctrl : controls) {
+            ctrl->state.store(2);
+            ctrl->state.notify_one();
+        }
+        for (auto& t : workers) t.join();
+        for (auto* ctrl : controls) delete ctrl;
+    }
+
+    void runBatch(std::vector<std::vector<TaskType>> &&buckets){
+        finishedCount.store(0, std::memory_order_relaxed);
+        int taskCount = 0;
+
+        workDone = std::make_unique<std::latch>(threadCount);
+
+        for (int i = 0; i < threadCount; ++i) {
+            taskCount += buckets[i].size();
+            controls[i]->bucket = std::move(buckets[i]);
+            controls[i]->state.store(1);
+            controls[i]->state.notify_one();
+        }
+        workDone->wait();
+    }
+
+private:
+
+    int threadCount;
+    std::vector<std::thread> workers;
+    std::vector<WorkerControl*> controls;
+    std::atomic<int> finishedCount;
+
+    std::unique_ptr<std::latch> workDone;
+
+};
 
 #endif // UTILS_H

@@ -3,7 +3,7 @@
 
 #include "structures.h"
 
-const bool showStatistics = false;
+const bool showStatistics = true;
 
 void clearRenderBuffer();
 

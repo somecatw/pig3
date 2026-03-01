@@ -74,6 +74,22 @@ target_link_libraries(pig3 PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.pig3)
 endif()
+if(WIN32)
+    # 判断编译器是否为MinGW
+    if(MINGW)
+        # MinGW g++：添加-mconsole参数，强制创建控制台
+        target_link_options(MyQtApp PRIVATE -mconsole)
+        # 关闭Qt的WIN32 GUI标识（避免冲突）
+        set_target_properties(MyQtApp PROPERTIES
+            WIN32_EXECUTABLE FALSE
+        )
+    else() # MSVC编译器
+        set_target_properties(MyQtApp PROPERTIES
+            WIN32_EXECUTABLE FALSE
+            LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+        )
+    endif()
+endif()
 set_target_properties(pig3 PROPERTIES
     ${BUNDLE_ID_OPTION}
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
